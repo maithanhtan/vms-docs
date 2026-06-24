@@ -17,7 +17,7 @@ You can add or update monitoring probes through the VMS Dashboard or by editing 
 
 <Steps>
   <Step title="Identify the Target">
-    Determine what host, service, or endpoint needs monitoring. For example, to check the HTTP endpoint of a web service at `https://api.vero.io/health`.
+    Determine what host, service, or endpoint needs monitoring. For example, to check the HTTP endpoint of a web service at `https://api.verolabs.co/health`.
   </Step>
   <Step title="Select the Probe Type">
     Choose the appropriate probe type based on your target:
@@ -38,7 +38,7 @@ You can add or update monitoring probes through the VMS Dashboard or by editing 
       "timeoutMs": 5000,
       "enabled": true,
       "config": {
-        "url": "https://api.vero.io/health",
+        "url": "https://api.verolabs.co/health",
         "method": "GET",
         "expectedStatus": 200
       }
@@ -70,6 +70,6 @@ You should see log output similar to this:
 ```text
 INFO[0030] [Config] Fetching latest probes configuration...
 INFO[0031] [Config] Found 2 active probes (host_resource, http_check)
-INFO[0060] [Probe:api-health-check] HTTP GET https://api.vero.io/health succeeded, status code 200
+INFO[0060] [Probe:api-health-check] HTTP GET https://api.verolabs.co/health succeeded, status code 200
 INFO[0060] [Ingress] Reporting 1 probe results to vms-ingress...
 ```

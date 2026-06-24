@@ -17,7 +17,7 @@ Giao diện quản lý của VMS Dashboard cho phép bạn theo dõi danh sách 
 
 <Steps>
   <Step title="Xác định mục tiêu giám sát (Target)">
-    Xác định host, service hoặc endpoint nào cần giám sát. Ví dụ: Cần kiểm tra HTTP endpoint của web service tại `https://api.vero.io/health`.
+    Xác định host, service hoặc endpoint nào cần giám sát. Ví dụ: Cần kiểm tra HTTP endpoint của web service tại `https://api.verolabs.co/health`.
   </Step>
   <Step title="Chọn loại Probe phù hợp">
     Dựa vào mục tiêu để chọn loại probe thích hợp trong danh sách:
@@ -38,7 +38,7 @@ Giao diện quản lý của VMS Dashboard cho phép bạn theo dõi danh sách 
       "timeoutMs": 5000,
       "enabled": true,
       "config": {
-        "url": "https://api.vero.io/health",
+        "url": "https://api.verolabs.co/health",
         "method": "GET",
         "expectedStatus": 200
       }
@@ -70,6 +70,6 @@ Khi probe chạy, log sẽ in thông tin tương tự như sau:
 ```text
 INFO[0030] [Config] Fetching latest probes configuration...
 INFO[0031] [Config] Found 2 active probes (host_resource, http_check)
-INFO[0060] [Probe:api-health-check] HTTP GET https://api.vero.io/health succeeded, status code 200
+INFO[0060] [Probe:api-health-check] HTTP GET https://api.verolabs.co/health succeeded, status code 200
 INFO[0060] [Ingress] Reporting 1 probe results to vms-ingress...
 ```
