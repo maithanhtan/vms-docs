@@ -18,7 +18,7 @@
     "dark": "#1E1B18"
   },
   "appearance": {
-    "default": "dark",
+    "default": "light",
     "strict": false
   },
   "fonts": {
