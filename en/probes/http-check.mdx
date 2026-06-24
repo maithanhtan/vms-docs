@@ -1,0 +1,59 @@
+---
+title: 'Probe: http_check'
+description: 'Check HTTP/HTTPS endpoints with status, body, and JSONPath assertions'
+---
+
+## Description
+
+The `http_check` probe sends an HTTP request to an endpoint and validates the response. Supports assertions on status code, body content, and JSONPath. This is an active check — emits metrics and a check result with latency.
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"http_check"` |
+| `url` | `string` | Yes | — | Full URL to check (including scheme) |
+| `method` | `string` | No | `"GET"` | HTTP method |
+| `headers` | `map[string]string` | No | — | Request headers |
+| `bodyTemplate` | `string` | No | — | Request body (for POST/PUT) |
+| `expectedStatus` | `int[]` | No | any < 400 | Acceptable status codes. Empty = any status < 400 passes |
+| `expectedBodyContains` | `string` | No | — | String that must appear in the response body |
+| `expectedJsonPath` | `string` | No | — | JSONPath expression to check (e.g. `$.status`) |
+| `expectedJsonValue` | `any` | No | — | Expected value at the JSONPath. If omitted, only checks path existence |
+
+## Metrics
+
+| Metric | Type | Unit | Description |
+|---|---|---|---|
+| `vms.http_check.status` | status | — | `up` or `down` |
+| `vms.http_check.latency_ms` | gauge | ms | Response time |
+
+## Example config
+
+```json
+{
+  "type": "http_check",
+  "method": "GET",
+  "url": "https://app.verolabs.co/health",
+  "expectedStatus": [200]
+}
+```
+
+**JSONPath assertion:**
+
+```json
+{
+  "type": "http_check",
+  "method": "GET",
+  "url": "https://api.verolabs.co/status",
+  "headers": { "Authorization": "Bearer token123" },
+  "expectedJsonPath": "$.status",
+  "expectedJsonValue": "healthy"
+}
+```
+
+## Notes
+
+- Assertions are evaluated **in order**: status code → body contains → JSONPath.
+- Response body is read up to **1 MiB**.
+- A transport failure (connection refused, timeout) is a normal `down` result, not an agent error.

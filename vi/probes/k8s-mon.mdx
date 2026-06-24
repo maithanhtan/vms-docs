@@ -1,0 +1,95 @@
+---
+title: 'Probe: k8s_mon'
+description: 'Giám sát Kubernetes workload, pod, node và service'
+---
+
+## Mô tả
+
+Probe `k8s_mon` giám sát Kubernetes resources: Deployment, DaemonSet, StatefulSet (replicas desired vs available), Pod (readiness, restart count), Node (readiness), và Service (existence). Tùy chọn thu thập CPU/memory pod qua metrics-server.
+
+Build tag `vms_heavy`. Dùng in-cluster config + ServiceAccount. Cần RBAC get/list trên resource tương ứng.
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"k8s_mon"` |
+| `namespace` | `string` | Không | `"default"` | Kubernetes namespace |
+| `workloadKind` | `string` | Có | — | Loại resource: `"Node"`, `"Pod"`, `"Deployment"`, `"DaemonSet"`, `"StatefulSet"`, `"Service"` |
+| `workloadName` | `string` | * | — | Tên resource cụ thể. Bắt buộc 1 trong 2: `workloadName` hoặc `labelSelector` |
+| `labelSelector` | `string` | * | — | Kubernetes label selector (ví dụ `"app=core-api"`). Bắt buộc 1 trong 2 |
+| `collectStats` | `bool` | Không | `false` | Thu thập CPU (millicores) và memory (bytes) per pod từ metrics-server |
+
+## Metrics
+
+### Deployment / DaemonSet / StatefulSet
+
+| Metric | Type | Labels | Mô tả |
+|---|---|---|---|
+| `vms.k8s_mon.status` | status | `kind`, `namespace`, `workload` | `up` hoặc `down` |
+| `vms.k8s_mon.workload.available` | gauge | `kind`, `namespace`, `workload` | Số replicas available/ready |
+| `vms.k8s_mon.workload.desired` | gauge | `kind`, `namespace`, `workload` | Số replicas desired |
+
+### Pod
+
+| Metric | Type | Labels | Mô tả |
+|---|---|---|---|
+| `vms.k8s_mon.pod.ready` | gauge | `kind`, `namespace`, `pod` | `1` = ready, `0` = not ready |
+| `vms.k8s_mon.restart_count` | counter | `kind`, `namespace`, `pod` | Tổng restart count của tất cả container trong pod |
+
+### Node
+
+| Metric | Type | Labels | Mô tả |
+|---|---|---|---|
+| `vms.k8s_mon.node.ready` | gauge | `kind`, `namespace`, `node` | `1` = ready, `0` = not ready |
+
+### Stats (khi `collectStats = true`)
+
+| Metric | Type | Unit | Labels | Mô tả |
+|---|---|---|---|---|
+| `vms.k8s_mon.cpu_millicores` | gauge | millicores | `kind`, `namespace`, `pod` | Tổng CPU usage per pod |
+| `vms.k8s_mon.memory_bytes` | gauge | bytes | `kind`, `namespace`, `pod` | Tổng memory usage per pod |
+
+## Ví dụ config
+
+**Giám sát Deployment:**
+
+```json
+{
+  "type": "k8s_mon",
+  "namespace": "core",
+  "workloadKind": "Deployment",
+  "workloadName": "core-api",
+  "collectStats": true
+}
+```
+
+**Giám sát Pod theo label:**
+
+```json
+{
+  "type": "k8s_mon",
+  "namespace": "core",
+  "workloadKind": "Pod",
+  "labelSelector": "app=core-worker",
+  "collectStats": true
+}
+```
+
+**Giám sát Node:**
+
+```json
+{
+  "type": "k8s_mon",
+  "workloadKind": "Node",
+  "workloadName": "worker-01"
+}
+```
+
+## Lưu ý
+
+- Tối đa **100 pod/node** emit per run.
+- RBAC cần thiết: `get`, `list` trên resource tương ứng. Nếu thiếu → status `unknown`, emit `vms.agent.permission_missing{capability=kubernetes_rbac}`.
+- `collectStats` cần metrics-server cài trong cluster. Nếu không có → stats bị bỏ qua (không lỗi).
+- Không chạy trong Kubernetes (không có in-cluster config) → status `unknown`, emit `vms.agent.permission_missing{capability=kubernetes_in_cluster}`.
+- Build tag `vms_heavy` — không có trong package agent mặc định.

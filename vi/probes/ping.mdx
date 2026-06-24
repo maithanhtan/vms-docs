@@ -1,0 +1,56 @@
+---
+title: 'Probe: ping'
+description: 'Kiểm tra host reachable bằng ICMP hoặc TCP fallback'
+---
+
+## Mô tả
+
+Probe `ping` kiểm tra host có reachable không bằng ICMP echo (unprivileged datagram socket). Nếu ICMP không khả dụng (thiếu `CAP_NET_RAW` hoặc `net.ipv4.ping_group_range` không bao gồm user chạy agent), probe tự động fallback sang TCP connect.
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"ping"` |
+| `host` | `string` | Có | — | Host hoặc IP cần ping |
+| `count` | `int` | Không | `3` | Số lần ping (1–10). Giá trị > 10 bị clamp về 10 |
+| `method` | `string` | Không | `""` (auto) | `"icmp"`: chỉ dùng ICMP. `"tcp_fallback"`: chỉ dùng TCP. Để trống: thử ICMP trước, fallback TCP nếu thất bại |
+| `fallbackPort` | `int` | Không | `443` | TCP port dùng khi fallback (1–65535) |
+
+## Metrics
+
+| Metric | Type | Unit | Labels | Mô tả |
+|---|---|---|---|---|
+| `vms.ping.status` | status | — | `method` | `up` hoặc `down` |
+| `vms.ping.latency_ms` | gauge | ms | `method` | Latency trung bình |
+| `vms.agent.permission_missing` | gauge | — | `capability=CAP_NET_RAW` | Emit khi ICMP bị chặn và probe chạy bằng TCP fallback |
+
+Label `method` có giá trị `"icmp"` hoặc `"tcp_fallback"`.
+
+## Ví dụ config
+
+```json
+{
+  "type": "ping",
+  "host": "10.0.0.10",
+  "count": 3,
+  "fallbackPort": 443
+}
+```
+
+**Bắt buộc TCP fallback (bỏ qua ICMP):**
+
+```json
+{
+  "type": "ping",
+  "host": "10.0.0.10",
+  "method": "tcp_fallback",
+  "fallbackPort": 80
+}
+```
+
+## Lưu ý
+
+- ICMP unavailable được detect **1 lần khi khởi tạo**, không probe lại mỗi lần chạy.
+- Khi ICMP bị chặn, probe log warning 1 lần và emit `vms.agent.permission_missing{capability=CAP_NET_RAW}` mỗi lần chạy để gap hiển thị trên dashboard.
+- Để bật ICMP native trên Linux: cấp `CAP_NET_RAW` cho binary hoặc mở rộng `net.ipv4.ping_group_range`.

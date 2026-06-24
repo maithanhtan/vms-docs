@@ -1,0 +1,81 @@
+---
+title: 'Probe: http_check'
+description: 'Kiểm tra endpoint HTTP/HTTPS với status, body và JSONPath assertion'
+---
+
+## Mô tả
+
+Probe `http_check` gửi HTTP request đến endpoint và kiểm tra response. Hỗ trợ assertion trên status code, body content, và JSONPath. Đây là active check — emit metric và check result với latency.
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"http_check"` |
+| `url` | `string` | Có | — | URL đầy đủ cần kiểm tra (bao gồm scheme) |
+| `method` | `string` | Không | `"GET"` | HTTP method: `GET`, `POST`, `PUT`, v.v. |
+| `headers` | `map[string]string` | Không | — | Header gửi kèm request |
+| `bodyTemplate` | `string` | Không | — | Body gửi kèm request (cho POST/PUT) |
+| `expectedStatus` | `int[]` | Không | bất kỳ < 400 | Danh sách status code được xem là pass. Nếu để trống, bất kỳ status < 400 đều pass |
+| `expectedBodyContains` | `string` | Không | — | Chuỗi cần có trong response body |
+| `expectedJsonPath` | `string` | Không | — | JSONPath expression cần kiểm tra (ví dụ `$.status`) |
+| `expectedJsonValue` | `any` | Không | — | Giá trị kỳ vọng tại JSONPath. Nếu để trống, chỉ kiểm tra path tồn tại |
+
+## Assertion logic
+
+Các assertion được kiểm tra **theo thứ tự**:
+1. **Status code** — nếu `expectedStatus` có giá trị, response status phải nằm trong danh sách. Nếu để trống, status ≥ 400 là fail.
+2. **Body contains** — nếu `expectedBodyContains` có giá trị, response body phải chứa chuỗi đó.
+3. **JSONPath** — nếu `expectedJsonPath` có giá trị:
+   - Body phải là valid JSON
+   - Path phải resolve được
+   - Nếu `expectedJsonValue` có giá trị, giá trị tại path phải bằng (deep equal)
+
+Response body được đọc tối đa **1 MiB**.
+
+## Metrics
+
+| Metric | Type | Unit | Mô tả |
+|---|---|---|---|
+| `vms.http_check.status` | status | — | `up` hoặc `down` |
+| `vms.http_check.latency_ms` | gauge | ms | Thời gian response |
+
+## Ví dụ config
+
+**Kiểm tra health endpoint:**
+
+```json
+{
+  "type": "http_check",
+  "method": "GET",
+  "url": "https://app.verolabs.co/health",
+  "expectedStatus": [200]
+}
+```
+
+**Kiểm tra API với JSONPath:**
+
+```json
+{
+  "type": "http_check",
+  "method": "GET",
+  "url": "https://api.verolabs.co/status",
+  "headers": { "Authorization": "Bearer token123" },
+  "expectedStatus": [200],
+  "expectedJsonPath": "$.status",
+  "expectedJsonValue": "healthy"
+}
+```
+
+**POST request với body:**
+
+```json
+{
+  "type": "http_check",
+  "method": "POST",
+  "url": "https://api.verolabs.co/check",
+  "headers": { "Content-Type": "application/json" },
+  "bodyTemplate": "{\"action\": \"ping\"}",
+  "expectedStatus": [200, 201]
+}
+```

@@ -1,0 +1,42 @@
+---
+title: 'Probe: tls_cert'
+description: 'Monitor TLS certificate expiry'
+---
+
+## Description
+
+The `tls_cert` probe connects to a host via TLS, reads the leaf certificate, and calculates days remaining before expiry. Supports warning and critical thresholds.
+
+Certificate verification is intentionally disabled — the probe reads expired or self-signed certificates to report accurate days remaining.
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"tls_cert"` |
+| `host` | `string` | Yes | — | Host for TLS connection and SNI |
+| `port` | `int` | Yes | — | TLS port (1–65535) |
+| `warningDays` | `int` | No | `0` | Days remaining threshold for `warning`. `0` = no warning |
+| `criticalDays` | `int` | No | `0` | Days remaining threshold for `critical`. `0` = no critical alert |
+
+<Warning>
+If both `warningDays` and `criticalDays` are > 0, `criticalDays` must be ≤ `warningDays`.
+</Warning>
+
+## Metrics
+
+| Metric | Type | Unit | Description |
+|---|---|---|---|
+| `vms.tls_cert.days_remaining` | gauge | days | Days until cert expiry. `-1` if TLS handshake failed |
+
+## Example config
+
+```json
+{
+  "type": "tls_cert",
+  "host": "app.verolabs.co",
+  "port": 443,
+  "warningDays": 30,
+  "criticalDays": 7
+}
+```

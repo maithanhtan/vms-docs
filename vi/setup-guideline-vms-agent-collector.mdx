@@ -1,0 +1,216 @@
+---
+title: 'Setup guideline VMS agent collector'
+description: 'Hướng dẫn triển khai agent bằng script và cấu hình probe monitor'
+---
+
+<div style={{ width: '100%', height: 4, marginBottom: 24, borderRadius: 2, background: 'rgba(0,0,0,0.08)' }}>
+  <div style={{ width: '75%', height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--accent-primary) 0%, var(--accent-light) 50%, var(--accent-dark) 100%)' }} />
+</div>
+
+VMS agent collector (Vero Metric Collector) chạy trực tiếp tại host hoặc customer site để thu thập dữ liệu giám sát (system metrics, process, logs, connections, port status) và gửi về VMS Master qua HTTPS. 
+
+<Info>
+**Hỗ trợ đa nền tảng**: VMS Agent hỗ trợ chạy trực tiếp trên **Linux** dưới dạng systemd service và trên **Windows** dưới dạng Windows service, ngoài ra cũng hỗ trợ container hóa qua Docker/Kubernetes.
+</Info>
+
+## Mô hình hoạt động của Agent
+
+Dưới đây là luồng kết nối và báo cáo dữ liệu của Agent trên cả hai nền tảng Linux và Windows:
+
+![Cài đặt và kết nối VMS Agent](/images/vms_agent_deployment.png)
+
+---
+
+## Các đầu mục chuẩn bị (Agent)
+
+| Đầu mục | Yêu cầu chuẩn bị |
+|---|---|
+| OS | **Linux** (systemd) hoặc **Windows** (Windows Service) |
+| Kết nối | Inbound port không cần mở. Outbound cần mở kết nối HTTPS tới `INGRESS_URL` |
+| API Key | Key hợp lệ sinh ra từ VMS Master |
+| TLS Mode | Public CA hoặc file private CA được cấu hình nếu tự ký cert |
+
+---
+
+## Quy trình triển khai trên Linux (systemd)
+
+Quy trình cài đặt trên Linux bao gồm các bước theo cấu trúc **Thực hiện (Step) - Kiểm tra (Check) - Kết quả (Result)**:
+
+<Steps>
+  <Step title="1. Tải và cài đặt Agent">
+    - **Step**: Tải install script từ domain của khách hàng để cài đặt package và binary.
+      ```bash
+      curl -fsSL https://CUSTOMER_DOMAIN/agent/install/linux.sh | sudo bash -s -- --ingress-url https://ingest.CUSTOMER_DOMAIN --api-key YOUR_API_KEY
+      ```
+    - **Check**: Kiểm tra xem file chạy và version đã được tạo đúng chưa:
+      ```bash
+      vms-monitor-agent version
+      ```
+    - **Result**: Hiển thị thông tin phiên bản, commit ID và ngày build của agent.
+  </Step>
+
+  <Step title="2. Cấu hình biến môi trường và TLS">
+    - **Step**: Tạo hoặc cập nhật file cấu hình environment `/etc/vms-monitor-agent/agent.env`. Khai báo API key và CA file (nếu dùng CA nội bộ).
+      ```bash
+      VMS_METRICS_INGRESS_URL="https://ingest.CUSTOMER_DOMAIN"
+      VMS_METRICS_INGRESS_API_KEY="YOUR_API_KEY"
+      VMS_TLS_CA_FILE="/etc/vms-monitor-agent/ca.crt"
+      ```
+    - **Check**: Đọc file env để đảm bảo không bị lỗi cú pháp:
+      ```bash
+      cat /etc/vms-monitor-agent/agent.env
+      ```
+    - **Result**: File env được tạo chính xác với các biến môi trường cấu hình kết nối.
+  </Step>
+
+  <Step title="3. Khởi chạy Service">
+    - **Step**: Bật tính năng khởi động cùng hệ thống và start service `vms-monitor-agent` qua systemd:
+      ```bash
+      sudo systemctl daemon-reload
+      sudo systemctl enable --now vms-monitor-agent
+      ```
+    - **Check**: Kiểm tra tình trạng hoạt động của service:
+      ```bash
+      sudo systemctl status vms-monitor-agent --no-pager
+      ```
+    - **Result**: Trạng thái service hiển thị `active (running)`.
+  </Step>
+
+  <Step title="4. Kiểm tra Logs kết nối">
+    - **Step**: Xem logs hoạt động thực tế để xác nhận agent đã giao tiếp được với VMS Master.
+      ```bash
+      sudo journalctl -u vms-monitor-agent -n 50 -f --no-pager
+      ```
+    - **Check**: Tìm log ghi nhận việc kết nối gửi metric.
+    - **Result**: Xuất hiện log `INFO [Ingress] Reporting probe results to vms-ingress...` và không có lỗi auth/connection.
+  </Step>
+</Steps>
+
+---
+
+## Quy trình triển khai trên Windows (Windows Service)
+
+Quy trình cài đặt trên Windows bao gồm các bước theo cấu trúc **Thực hiện (Step) - Kiểm tra (Check) - Kết quả (Result)**:
+
+<Steps>
+  <Step title="1. Tải bộ cài đặt Windows">
+    - **Step**: Mở PowerShell với quyền Administrator và tải file script cài đặt cùng binary:
+      ```powershell
+      iwr https://CUSTOMER_DOMAIN/agent/install/windows.ps1 -OutFile install.ps1
+      ```
+    - **Check**: Xác nhận file script đã nằm trong thư mục hiện tại:
+      ```powershell
+      Test-Path .\install.ps1
+      ```
+    - **Result**: Kết quả trả về `True`.
+  </Step>
+
+  <Step title="2. Chạy script cài đặt Service">
+    - **Step**: Thực hiện chạy script cài đặt dịch vụ tự động với thông tin Ingress URL và API Key:
+      ```powershell
+      PowerShell -ExecutionPolicy Bypass -File .\install.ps1 -IngressUrl "https://ingest.CUSTOMER_DOMAIN" -ApiKey "YOUR_API_KEY"
+      ```
+    - **Check**: Kiểm tra phiên bản của exe sau khi script hoàn tất:
+      ```powershell
+      .\vms-monitor-agent.exe version
+      ```
+    - **Result**: Phiên bản agent được in ra thành công trên terminal.
+  </Step>
+
+  <Step title="3. Khởi chạy và kiểm tra Windows Service">
+    - **Step**: Start service thông qua Service Controller của Windows:
+      ```powershell
+      Start-Service -Name "vms-monitor-agent"
+      ```
+    - **Check**: Lấy trạng thái hoạt động của Service:
+      ```powershell
+      Get-Service -Name "vms-monitor-agent"
+      ```
+    - **Result**: Thuộc tính Status hiển thị là `Running`.
+  </Step>
+
+  <Step title="4. Kiểm tra nhật ký Event Viewer">
+    - **Step**: Đọc Event Logs của Application để đảm bảo agent kết nối tốt và không crash.
+      ```powershell
+      Get-EventLog -LogName Application -Source vms-monitor-agent -Newest 10
+      ```
+    - **Check**: Tìm kiếm bản ghi log khởi chạy thành công.
+    - **Result**: Logs báo cáo agent khởi chạy thành công và kết nối thành công tới Ingress API.
+  </Step>
+</Steps>
+
+---
+
+## Cấu trúc cấu hình chung của Probe
+
+Mỗi probe có phần thông tin chung và phần `config` riêng theo từng loại probe.
+
+```json
+{
+  "code": "core-host-resource",
+  "name": "Core host resource",
+  "type": "host_resource",
+  "intervalSeconds": 30,
+  "timeoutMs": 5000,
+  "retryCount": 1,
+  "enabled": true,
+  "targetId": "core-host-01",
+  "labels": { "system": "Core", "owner": "core-ops" },
+  "config": { "collectCpu": true, "collectMemory": true }
+}
+```
+
+| Field | Bắt buộc | Mô tả |
+|---|---|---|
+| `code` | Có | Mã duy nhất để nhận diện probe |
+| `name` | Không | Tên hiển thị trên dashboard |
+| `type` | Có | Loại probe, ví dụ `host_resource`, `http_check` |
+| `intervalSeconds` | Không | Chu kỳ chạy probe |
+| `timeoutMs` | Không | Timeout cho một lần chạy |
+| `retryCount` | Không | Số lần retry khi check fail |
+| `enabled` | Không | Bật/tắt probe |
+| `targetId` | Không | Mã host/service liên quan |
+| `labels` | Không | Label bổ sung như system, env, owner |
+| `config` | Có | Cấu hình riêng của từng probe |
+
+---
+
+## Danh sách probe hỗ trợ
+
+Chi tiết config từng probe xem tại trang riêng trong menu bên trái. Bảng tóm tắt:
+
+| Probe type | Nhóm | Mô tả |
+|---|---|---|
+| `host_resource` | Core | Thu thập CPU, memory, disk, disk IO, network |
+| `check_port` | Core | Kiểm tra TCP port mở/đóng |
+| `ping` | Core | Kiểm tra host reachable (ICMP / TCP fallback) |
+| `http_check` | Core | Kiểm tra HTTP/HTTPS endpoint |
+| `dns_check` | Core | Kiểm tra DNS record |
+| `tls_cert` | Core | Theo dõi hạn TLS certificate |
+| `process_mon` | Core | Giám sát process đang chạy |
+| `service_mon` | Core | Kiểm tra trạng thái systemd / Windows service |
+| `connection` | Core | Kiểm tra số lượng connection theo filter |
+| `connection_mon` | Core | Giám sát TCP connection giữa process và service (bidirectional) |
+| `file_check` | Core | Kiểm tra file tồn tại, size, tuổi |
+| `log_mon` | Core | Đếm log line match pattern |
+| `log_get` | Core | Ship log line có redaction |
+| `auto_discovery` | Core | Discovery connection inventory và topology |
+| `custom_check` | Opt-in (`vms_custom_check`) | Chạy executable đã phê duyệt |
+| `container_mon` | Heavy (`vms_heavy`) | Giám sát Docker / Swarm container |
+| `k8s_mon` | Heavy (`vms_heavy`) | Giám sát Kubernetes workload/pod/node |
+| `snmp_check` | Heavy (`vms_heavy`) | Polling SNMP OID |
+| `wmi_perf` | Heavy (`vms_heavy`) | WMI query trên Windows |
+
+---
+
+## Troubleshooting thường gặp
+
+| Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
+|---|---|---|
+| Agent start fail ngay | Thiếu ingress URL/API key | Kiểm tra env file hoặc machine env |
+| `401`/auth blocked | API key sai hoặc bị rotate | Lấy key mới từ VMS master và restart agent |
+| `x509 unknown authority` | Ingress dùng private CA | Cài CA file và set `VMS_TLS_CA_FILE` |
+| Ping chuyển TCP fallback | Thiếu raw ICMP permission | Cấp `CAP_NET_RAW` hoặc chấp nhận TCP fallback |
+| Connection/process thiếu process name | Thiếu quyền đọc process attribution | Chạy với quyền phù hợp hoặc cấp `CAP_SYS_PTRACE` theo policy |
+| Container probe không chạy | Gói agent không có probe container hoặc thiếu docker socket | Dùng đúng package agent và mount socket read-only theo risk approval |
+| K8s probe permission missing | Thiếu ServiceAccount/RBAC | Cấp get/list workload/pod/node và metrics-server nếu `collectStats` |

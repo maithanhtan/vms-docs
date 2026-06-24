@@ -1,0 +1,76 @@
+---
+title: 'Probe: host_resource'
+description: 'Thu thập metric CPU, memory, disk, disk IO và network của host'
+---
+
+## Mô tả
+
+Probe `host_resource` thu thập metric tài nguyên hệ thống của host: CPU, memory, disk usage, disk I/O và network traffic. Đây là probe collector thuần — chỉ emit metric gauge/counter, không tạo check result.
+
+Yêu cầu platform adapter `HostAdapter` — chỉ hỗ trợ trên Linux và Windows (có adapter). Nếu adapter không khả dụng trên platform hiện tại, probe sẽ bị skip khi khởi tạo.
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"host_resource"` |
+| `collectCpu` | `bool` | Không | `false` | Bật thu thập CPU usage percent |
+| `collectMemory` | `bool` | Không | `false` | Bật thu thập memory usage percent |
+| `collectDisk` | `bool` | Không | `false` | Bật thu thập disk usage percent theo mount point |
+| `collectDiskIo` | `bool` | Không | `false` | Bật thu thập disk read/write bytes theo device |
+| `collectNetwork` | `bool` | Không | `false` | Bật thu thập network rx/tx bytes, errors, drops theo interface |
+| `diskMounts` | `string[]` | Không | tất cả mount | Danh sách mount point cần theo dõi disk usage. Nếu để trống, thu thập tất cả |
+| `diskDevices` | `string[]` | Không | tất cả device | Danh sách disk device cần theo dõi I/O. Nếu để trống, thu thập tất cả block device thực (bỏ qua loop/ram) |
+| `networkInterfaces` | `string[]` | Không | tất cả interface | Danh sách network interface cần theo dõi. Nếu để trống, thu thập tất cả |
+
+<Warning>
+Phải bật ít nhất một flag `collect*`, nếu không probe sẽ báo lỗi khi khởi tạo.
+</Warning>
+
+## Metrics
+
+| Metric | Type | Unit | Labels | Điều kiện |
+|---|---|---|---|---|
+| `vms.host.cpu.usage_percent` | gauge | percent | — | `collectCpu = true` |
+| `vms.host.memory.usage_percent` | gauge | percent | — | `collectMemory = true` |
+| `vms.host.disk.usage_percent` | gauge | percent | `mount` | `collectDisk = true` |
+| `vms.host.disk.read_bytes` | counter | bytes | `device` | `collectDiskIo = true` |
+| `vms.host.disk.write_bytes` | counter | bytes | `device` | `collectDiskIo = true` |
+| `vms.host.network.rx_bytes` | counter | bytes | `iface` | `collectNetwork = true` |
+| `vms.host.network.tx_bytes` | counter | bytes | `iface` | `collectNetwork = true` |
+| `vms.host.network.rx_errors` | counter | — | `iface` | `collectNetwork = true` |
+| `vms.host.network.rx_drops` | counter | — | `iface` | `collectNetwork = true` |
+| `vms.host.network.tx_errors` | counter | — | `iface` | `collectNetwork = true` |
+| `vms.host.network.tx_drops` | counter | — | `iface` | `collectNetwork = true` |
+| `vms.host.uptime_seconds` | gauge | seconds | — | Luôn thu thập nếu adapter hỗ trợ |
+
+## Ví dụ config
+
+```json
+{
+  "type": "host_resource",
+  "collectCpu": true,
+  "collectMemory": true,
+  "collectDisk": true,
+  "collectDiskIo": true,
+  "collectNetwork": true,
+  "diskMounts": ["/", "/data"],
+  "diskDevices": ["sda", "nvme0n1"],
+  "networkInterfaces": ["eth0", "bond0"]
+}
+```
+
+**Config tối thiểu:**
+
+```json
+{
+  "type": "host_resource",
+  "collectCpu": true,
+  "collectMemory": true
+}
+```
+
+## Lưu ý
+
+- Nếu một metric family lỗi (ví dụ disk mount không tồn tại), probe tiếp tục thu thập các family khác và báo trạng thái `degraded` thay vì fail hoàn toàn.
+- Counter metric (disk I/O, network) là tích lũy từ lúc boot — downstream sẽ tính rate bằng cách so sánh 2 mẫu liên tiếp.

@@ -1,0 +1,66 @@
+---
+title: 'Probe: auto_discovery'
+description: 'Tự discovery connection inventory và service topology'
+---
+
+## Mô tả
+
+Probe `auto_discovery` đọc bảng connection của host và tự ghi nhận connection inventory cho các process được chỉ định. Hỗ trợ emit metric inventory cho từng connection và/hoặc topology data (listen ports + connection edges) để vẽ service dependency map.
+
+Yêu cầu `ConnAdapter`. Nếu dùng `processNames`, cần `CAP_SYS_PTRACE` để attribute socket tới PID.
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"auto_discovery"` |
+| `processProbeIds` | `string[]` | Không | — | Danh sách probe ID của `process_mon` — agent tự resolve ra processName tương ứng |
+| `processNames` | `string[]` | Không | — | Danh sách process name cần discovery connection |
+| `includeStates` | `string[]` | Không | — | Chỉ include các connection state này (ví dụ `["ESTABLISHED"]`) |
+| `excludeRemoteAddresses` | `string[]` | Không | — | Loại trừ connection tới các remote address này |
+| `excludeRemotePorts` | `int[]` | Không | — | Loại trừ connection tới các remote port này |
+| `emitConnectionMetrics` | `bool` | Không | `false` | Emit metric inventory cho từng discovered connection |
+| `emitTopology` | `bool` | Không | `false` | Emit topology data: listen registry + connection edges (dùng cho service dependency map) |
+
+## Metrics
+
+| Metric | Type | Labels | Điều kiện |
+|---|---|---|---|
+| `vms.connection.discovered_count` | gauge | — | Luôn emit |
+| `vms.connection.discovered` | gauge | `process_name`, `local_addr`, `local_port`, `remote_addr`, `remote_port`, `state`, `protocol` | `emitConnectionMetrics = true`. Tối đa 200 series |
+| `vms.topology.listen_count` | gauge | — | `emitTopology = true` |
+| `vms.topology.listen` | gauge | `process_name`, `local_addr`, `local_port`, `protocol` | `emitTopology = true`. Tối đa 200 series |
+| `vms.topology.edge_count` | gauge | — | `emitTopology = true` |
+| `vms.topology.edge` | gauge | `process_name`, `local_addr`, `local_port`, `remote_addr`, `remote_port`, `protocol` | `emitTopology = true`. Tối đa 500 series |
+| `vms.agent.permission_missing` | gauge | `capability=CAP_SYS_PTRACE` | Khi processNames được cấu hình nhưng thiếu quyền |
+
+## Ví dụ config
+
+```json
+{
+  "type": "auto_discovery",
+  "processNames": ["nginx", "java"],
+  "includeStates": ["ESTABLISHED"],
+  "emitConnectionMetrics": true
+}
+```
+
+**Với topology:**
+
+```json
+{
+  "type": "auto_discovery",
+  "processProbeIds": ["probe-nginx", "probe-api"],
+  "includeStates": ["ESTABLISHED", "LISTEN"],
+  "excludeRemoteAddresses": ["127.0.0.1"],
+  "excludeRemotePorts": [22],
+  "emitConnectionMetrics": true,
+  "emitTopology": true
+}
+```
+
+## Lưu ý
+
+- Series bị cap để bound cardinality: inventory tối đa 200, listen tối đa 200, edges tối đa 500. Tổng count luôn chính xác — cap chỉ ảnh hưởng per-series detail.
+- `processProbeIds` được agent resolve ra `processNames` trước khi probe chạy. Nếu probe chạy ngoài agent (ví dụ test), sẽ bị warning.
+- Bảng connection là attacker-influenceable (bất kỳ process local nào cũng có thể mở socket) — cap series là biện pháp anti-cardinality.

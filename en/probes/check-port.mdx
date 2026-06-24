@@ -1,0 +1,53 @@
+---
+title: 'Probe: check_port'
+description: 'Check TCP port reachability'
+---
+
+## Description
+
+The `check_port` probe performs a TCP connect to verify whether a port on a host is reachable. Supports both expecting the port to be open (default) and expecting it to be closed.
+
+This is an active check — emits both metrics and a check result with latency.
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"check_port"` |
+| `host` | `string` | Yes | — | Host or IP to check |
+| `port` | `int` | Yes | — | TCP port (1–65535) |
+| `expectOpen` | `bool` | No | `true` | `true`: expect port open → `up` on successful connect. `false`: expect port closed → `up` on connect failure |
+
+## Metrics
+
+| Metric | Type | Unit | Description |
+|---|---|---|---|
+| `vms.check_port.status` | status | — | `up` or `down` |
+| `vms.check_port.latency_ms` | gauge | ms | TCP connect time |
+
+## Example config
+
+```json
+{
+  "type": "check_port",
+  "host": "10.0.0.10",
+  "port": 443,
+  "expectOpen": true
+}
+```
+
+**Check that a port is closed:**
+
+```json
+{
+  "type": "check_port",
+  "host": "10.0.0.10",
+  "port": 3389,
+  "expectOpen": false
+}
+```
+
+## Notes
+
+- When the result doesn't match the expectation, severity is `critical`.
+- A connect failure due to network is a normal result (`status=down`), not an agent error.

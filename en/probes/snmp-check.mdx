@@ -1,0 +1,52 @@
+---
+title: 'Probe: snmp_check'
+description: 'Poll SNMP OIDs from network devices'
+---
+
+## Description
+
+The `snmp_check` probe polls OID values from SNMP-enabled devices. Supports SNMPv2c (community string) and SNMPv3 (username + auth/privacy). Credentials are resolved via secret references — never logged.
+
+Build tag `vms_heavy`.
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"snmp_check"` |
+| `host` | `string` | Yes | — | SNMP target host/IP |
+| `port` | `int` | No | `161` | SNMP port |
+| `version` | `string` | Yes | — | `"v2c"` or `"v3"` |
+| `communitySecretRef` | `string` | No | `"public"` (v2c) | Secret ref for community string |
+| `usernameSecretRef` | `string` | v3: Yes | — | Secret ref for SNMPv3 username |
+| `authProtocol` | `string` | No | — | Auth protocol: `md5`, `sha`, `sha224`, `sha256`, `sha384`, `sha512` |
+| `authPasswordSecretRef` | `string` | When authProtocol set | — | Secret ref for auth passphrase |
+| `privacyProtocol` | `string` | No | — | Privacy protocol: `des`, `aes`, `aes192`, `aes256` |
+| `privPasswordSecretRef` | `string` | When privacyProtocol set | — | Secret ref for privacy passphrase |
+| `oids` | `string[]` | Yes | — | OIDs to GET. At least one required |
+
+## Metrics
+
+| Metric | Type | Labels | Description |
+|---|---|---|---|
+| `vms.snmp.status` | status | — | `up` or `down` |
+| `vms.snmp.value` | gauge | `oid` | Numeric OID value. Non-numeric OIDs skipped |
+
+## Example config
+
+```json
+{
+  "type": "snmp_check",
+  "host": "10.0.0.20",
+  "port": 161,
+  "version": "v2c",
+  "communitySecretRef": "SNMP_COMMUNITY_CORE",
+  "oids": ["1.3.6.1.2.1.1.3.0"]
+}
+```
+
+## Notes
+
+- Secret refs resolve via environment variables at construction. Unset ref → probe is skipped.
+- Only **numeric** values are emitted as metrics. Non-numeric OID values are skipped.
+- Build tag `vms_heavy` — not in default agent package.

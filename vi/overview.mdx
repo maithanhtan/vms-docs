@@ -1,0 +1,77 @@
+---
+title: 'Tổng quan VMS'
+description: 'Tài liệu vận hành Vero Monitor Service'
+---
+
+<div style={{ width: '100%', height: 240, marginBottom: 32, borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
+  <video style={{ width: '100%', height: '100%', objectFit: 'cover' }} autoPlay loop muted playsInline>
+    <source src="/images/bg_video.mp4" type="video/mp4" />
+  </video>
+</div>
+
+<div style={{ width: '100%', height: 4, marginBottom: 24, borderRadius: 2, background: 'rgba(0,0,0,0.08)' }}>
+  <div style={{ width: '25%', height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--accent-primary) 0%, var(--accent-light) 50%, var(--accent-dark) 100%)' }} />
+</div>
+
+Vero Monitor Service (VMS) là bộ tài liệu triển khai và vận hành hệ thống giám sát end-to-end cho hạ tầng, service, trải nghiệm người dùng và business flow.
+
+<CardGroup cols={3}>
+  <Card title="VMS Master" icon="server">
+    Thiết lập control plane trung tâm cho dashboard, alert, synthetic check, topology, lưu trữ metric và phân quyền vận hành.
+  </Card>
+  <Card title="Agent Collector" icon="satellite-dish">
+    Triển khai collector gần hệ thống cần theo dõi để thu thập host metric, process, port, service health và connection.
+  </Card>
+  <Card title="Troubleshooting" icon="screwdriver-wrench">
+    Chuẩn hoá cách xử lý collector mất kết nối, dashboard stale, alert noise, pre-market check fail và lỗi health check.
+  </Card>
+</CardGroup>
+
+## Mô hình theo dõi 4 tầng
+
+| Tầng | Câu hỏi cần trả lời | Tín hiệu chính | Người dùng chính |
+|---|---|---|---|
+| Infrastructure | Host, container và network có ổn không? | CPU, memory, disk, network, host status, container restart | Infrastructure / Platform |
+| Service | Service hoặc dependency nào không phản hồi? | Process, TCP/HTTP health, service-to-service connection, latency cơ bản | Application / Technical |
+| User | Synthetic check và pre-market readiness có pass không? | Trạng thái từng bước kiểm tra, thời gian chạy, kết quả 8:30 | Operation |
+| Business Flow | Flow nào đang có điểm nghi vấn? | Topology, path health, trạng thái node/edge theo flow | Management / Business owner |
+
+## Phạm vi triển khai
+
+| Hạng mục | Basic Scope | Advanced Scope |
+|---|---|---|
+| Infrastructure | Host-level monitoring cho Core / WEB / Mobile và hệ thống vệ tinh | Giữ nguyên Basic và bổ sung phân tích chuyên sâu khi được phê duyệt |
+| Service | Process, open port, TCP/HTTP probe, dependency connection | DBM, MQM, APM, distributed tracing |
+| User | Synthetic check và pre-market readiness 8:30 | Synthetic web, RUM và post-change verification mở rộng |
+| Business Flow | Dashboard topology dựa trên signal hiện có | Trace, log center và runbook hỗ trợ khoanh vùng sâu hơn |
+| Deliverable | Dashboard, alert catalog, readiness report, handover | Dashboard mở rộng, log/tracing, runbook, advanced observability |
+
+## Thành phần VMS
+
+| Thành phần | Vai trò |
+|---|---|
+| Vero Stack Monitor | Control plane trung tâm cho dashboard, alert, topology và vận hành |
+| Vero Metric Collector | Thu thập host metric, process, service health, connection và custom probe |
+| Vero Dashboard | Hiển thị overall system, từng khối Core / WEB / Mobile, satellite và KPI/SLA |
+| Vero Alert | Quản lý severity, owner, routing, escalation và maintenance window |
+| Vero Synthetic Engine | Chạy synthetic check định kỳ, readiness check 8:30 và post-change check |
+| Log Center | Gom, index và tra cứu log khi thuộc scope nâng cao |
+| Vero Tracing / APM / RUM | Bổ sung root cause analysis khi hệ thống đã được instrument |
+| Vero Runbook Engine | Workflow Request -> Approve -> Bot Execute cho action đã được phê duyệt |
+
+## Cách đọc tài liệu
+
+<Steps>
+  <Step title="Nắm scope VMS">
+    Bắt đầu ở trang tổng quan để hiểu 4 tầng monitoring, thành phần VMS và phạm vi Basic/Advanced.
+  </Step>
+  <Step title="Setup VMS master">
+    Dùng guideline master để chuẩn bị namespace, storage, secrets, ingress, dashboard, alert và readiness job.
+  </Step>
+  <Step title="Setup agent collector">
+    Dùng guideline collector để triển khai agent gần host/service, gắn tag chuẩn và xác nhận dữ liệu lên master.
+  </Step>
+  <Step title="Xử lý sự cố">
+    Dùng troubleshooting để triage collector, dashboard, alert, synthetic check và connection issue.
+  </Step>
+</Steps>

@@ -1,0 +1,64 @@
+---
+title: 'Probe: log_mon'
+description: 'Đếm log line match pattern trong file'
+---
+
+## Mô tả
+
+Probe `log_mon` tail file log, đếm số dòng mới match `includePattern` (và không match `excludePattern`). Probe track byte offset giữa các lần chạy — chỉ đếm dòng mới append, reset khi file bị truncate/rotate.
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"log_mon"` |
+| `filePath` | `string` | Có | — | Đường dẫn file log cần scan |
+| `includePattern` | `string` | Có | — | Regex match dòng cần đếm (ví dụ `"ERROR\|FATAL"`) |
+| `excludePattern` | `string` | Không | — | Regex loại trừ dòng dù đã match include (ví dụ `"healthcheck"`) |
+| `maxAgeSeconds` | `int64` | Không | — | Nếu file không thay đổi trong khoảng thời gian này (giây), bỏ qua scan |
+| `readFromEnd` | `bool` | Không | `true` | `true`: lần chạy đầu tiên bắt đầu từ cuối file (chỉ đếm dòng mới). `false`: đọc từ đầu file |
+
+## Metrics
+
+| Metric | Type | Unit | Mô tả |
+|---|---|---|---|
+| `vms.log_mon.match_count` | gauge | — | Số dòng match trong lần chạy này |
+
+## Status logic
+
+| Điều kiện | Status | Severity |
+|---|---|---|
+| `match_count = 0` | `up` | `info` |
+| `match_count > 0` | `warning` | `warning` |
+| File không tồn tại | `down` | `warning` |
+| File không đọc được | `down` | `warning` |
+
+## Ví dụ config
+
+```json
+{
+  "type": "log_mon",
+  "filePath": "/var/log/app/app.log",
+  "includePattern": "ERROR|FATAL",
+  "excludePattern": "healthcheck",
+  "maxAgeSeconds": 300
+}
+```
+
+**Đếm slow query trong MySQL log:**
+
+```json
+{
+  "type": "log_mon",
+  "filePath": "/var/log/mysql/slow-query.log",
+  "includePattern": "Query_time: [0-9]{2,}",
+  "readFromEnd": true
+}
+```
+
+## Lưu ý
+
+- Mỗi lần chạy đọc tối đa **8 MiB** — phần còn lại sẽ được đọc ở lần chạy tiếp.
+- Chỉ đếm dòng **hoàn chỉnh** (kết thúc bằng `\n`). Dòng chưa hoàn chỉnh chờ lần chạy sau.
+- File bị truncate (size giảm dưới offset) → offset reset về 0 và đọc lại từ đầu.
+- Scheduler đảm bảo không có 2 lần chạy cùng probe chồng lấn nhau.

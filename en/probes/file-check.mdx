@@ -1,0 +1,36 @@
+---
+title: 'Probe: file_check'
+description: 'Check file existence, size, and age'
+---
+
+## Description
+
+The `file_check` probe checks a file on the filesystem: existence, size, and age (modification time).
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"file_check"` |
+| `filePath` | `string` | Yes | — | File path to check |
+| `mustExist` | `bool` | No | `true` | `true`: file must exist → absent = `down`. `false`: absent file is `up` |
+| `minSizeBytes` | `int64` | No | — | Minimum file size (bytes) |
+| `maxSizeBytes` | `int64` | No | — | Maximum file size (bytes) |
+| `maxAgeSeconds` | `int64` | No | — | Maximum file age (seconds since last modification) |
+
+## Metrics
+
+| Metric | Type | Description |
+|---|---|---|
+| `vms.file_check.status` | status | `up` or `down` |
+
+## Example config
+
+```json
+{
+  "type": "file_check",
+  "filePath": "/var/log/app/app.log",
+  "mustExist": true,
+  "maxAgeSeconds": 600
+}
+```

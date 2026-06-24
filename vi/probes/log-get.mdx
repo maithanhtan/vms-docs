@@ -1,0 +1,57 @@
+---
+title: 'Probe: log_get'
+description: 'Ship log line có giới hạn với redaction'
+---
+
+## Mô tả
+
+Probe `log_get` tail file log và ship dòng mới tới VMS ingress qua `ProbeResult.Logs`. Hỗ trợ multiline grouping và redaction dữ liệu nhạy cảm trước khi gửi. Track byte offset giữa các lần chạy, reset khi file bị truncate/rotate.
+
+Khác với `log_mon` (đếm match), `log_get` ship **nội dung** log line.
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"log_get"` |
+| `filePath` | `string` | Có | — | Đường dẫn file log cần ship |
+| `readFromEnd` | `bool` | Không | `false` | `true`: lần chạy đầu tiên bắt đầu từ cuối file (chỉ ship dòng mới). `false`: đọc từ đầu file |
+| `maxBytesPerRead` | `int64` | Không | 8 MiB | Giới hạn bytes đọc mỗi lần chạy. Tối đa 8 MiB bất kể giá trị cấu hình |
+| `multilineStartPattern` | `string` | Không | — | Regex xác định dòng bắt đầu log entry mới. Dòng không match được nối vào entry trước đó. Nếu để trống, mỗi dòng là 1 entry |
+| `redactPatterns` | `string[]` | Không | — | Danh sách regex — mỗi match trong log line bị thay bằng `***` trước khi ship |
+
+## Metrics
+
+| Metric | Type | Unit | Mô tả |
+|---|---|---|---|
+| `vms.log_get.lines_sent` | counter | — | Số log entry đã ship trong lần chạy này |
+
+## Ví dụ config
+
+```json
+{
+  "type": "log_get",
+  "filePath": "/var/log/app/app.log",
+  "readFromEnd": true,
+  "maxBytesPerRead": 65536
+}
+```
+
+**Multiline Java stack trace:**
+
+```json
+{
+  "type": "log_get",
+  "filePath": "/var/log/app/app.log",
+  "readFromEnd": true,
+  "multilineStartPattern": "^\\d{4}-\\d{2}-\\d{2}",
+  "redactPatterns": ["password=[^&\\s]+", "token=[^&\\s]+"]
+}
+```
+
+## Lưu ý
+
+- **Redaction xảy ra trước khi ship** — dữ liệu match `redactPatterns` không bao giờ rời khỏi agent.
+- Multiline entry bị chia chính xác tại ranh giới read window có thể bị ship thành 2 entry riêng — chấp nhận được cho bounded tailer.
+- File không tồn tại hoặc không đọc được → status `down`, severity `warning`, không ship dòng nào.
+- Chỉ đọc dòng **hoàn chỉnh** (kết thúc bằng `\n`).

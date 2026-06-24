@@ -1,0 +1,41 @@
+---
+title: 'Probe: dns_check'
+description: 'Check DNS record resolution'
+---
+
+## Description
+
+The `dns_check` probe performs DNS lookups and validates results. Supports record types A, AAAA, CNAME, MX, TXT. Allows custom DNS resolver and expected value assertions.
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"dns_check"` |
+| `host` | `string` | Yes | — | Domain name to resolve |
+| `recordType` | `string` | No | `"A"` | Record type: `A`, `AAAA`, `CNAME`, `MX`, `TXT` |
+| `resolver` | `string` | No | system resolver | Custom DNS resolver (host or host:port). Defaults to `:53` if no port |
+| `expectedValues` | `string[]` | No | — | DNS values that must be present in the result. Any missing value → `down` |
+
+## Metrics
+
+| Metric | Type | Unit | Description |
+|---|---|---|---|
+| `vms.dns_check.status` | status | — | `up` or `down` |
+| `vms.dns_check.latency_ms` | gauge | ms | Lookup time |
+
+## Example config
+
+```json
+{
+  "type": "dns_check",
+  "host": "app.verolabs.co",
+  "recordType": "A",
+  "expectedValues": ["10.0.0.10"]
+}
+```
+
+## Notes
+
+- CNAME trailing dots are automatically stripped before comparison.
+- MX records compare hostname only (no priority).

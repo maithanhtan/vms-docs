@@ -1,0 +1,43 @@
+---
+title: 'Probe: log_mon'
+description: 'Count log lines matching a pattern in a file'
+---
+
+## Description
+
+The `log_mon` probe tails a log file, counting newly-appended lines matching `includePattern` (and not matching `excludePattern`). It tracks a byte offset between runs — only counts new lines, resets on truncation/rotation.
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"log_mon"` |
+| `filePath` | `string` | Yes | — | Log file path to scan |
+| `includePattern` | `string` | Yes | — | Regex for lines to count |
+| `excludePattern` | `string` | No | — | Regex to exclude lines that matched include |
+| `maxAgeSeconds` | `int64` | No | — | Skip scan if file hasn't changed within this many seconds |
+| `readFromEnd` | `bool` | No | `true` | `true`: start from EOF on first run. `false`: start from beginning |
+
+## Metrics
+
+| Metric | Type | Description |
+|---|---|---|
+| `vms.log_mon.match_count` | gauge | Number of matching lines in this run |
+
+## Example config
+
+```json
+{
+  "type": "log_mon",
+  "filePath": "/var/log/app/app.log",
+  "includePattern": "ERROR|FATAL",
+  "excludePattern": "healthcheck",
+  "maxAgeSeconds": 300
+}
+```
+
+## Notes
+
+- Reads up to **8 MiB** per run. Remainder is picked up on the next tick.
+- Only counts **complete lines** (ending with `\n`).
+- File truncation (size drops below offset) resets to offset 0.

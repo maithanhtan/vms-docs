@@ -1,0 +1,55 @@
+---
+title: 'Probe: wmi_perf'
+description: 'Chạy WMI query trên Windows'
+---
+
+## Mô tả
+
+Probe `wmi_perf` chạy WMI (Windows Management Instrumentation) query để thu thập performance counter từ Windows host. WMI là API Windows-only — trên non-Windows probe báo unsupported.
+
+Build tag `vms_heavy`. Execution thực tế (WMI/COM) hiện đang deferred — probe validate config và credential nhưng chưa thực thi query trên Windows.
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"wmi_perf"` |
+| `host` | `string` | Không | — | Windows host target. Để trống = localhost |
+| `namespace` | `string` | Không | — | WMI namespace (ví dụ `"root\\cimv2"`) |
+| `query` | `string` | Có | — | WMI query (ví dụ `"SELECT PercentProcessorTime FROM Win32_PerfFormattedData_PerfOS_Processor"`) |
+| `usernameSecretRef` | `string` | Không | — | Secret ref cho username. Secret phải set trong env, nếu không probe bị skip |
+| `passwordSecretRef` | `string` | Không | — | Secret ref cho password. Secret phải set trong env, nếu không probe bị skip |
+
+## Secret resolution
+
+Giống `snmp_check` — secret ref resolve qua env var. Ref được cấu hình nhưng env var không set → probe lỗi khi khởi tạo.
+
+## Ví dụ config
+
+```json
+{
+  "type": "wmi_perf",
+  "host": "win-core-01",
+  "namespace": "root\\\\cimv2",
+  "query": "SELECT PercentProcessorTime FROM Win32_PerfFormattedData_PerfOS_Processor"
+}
+```
+
+**Với credential:**
+
+```json
+{
+  "type": "wmi_perf",
+  "host": "win-db-01",
+  "namespace": "root\\\\cimv2",
+  "query": "SELECT PercentDiskTime FROM Win32_PerfFormattedData_PerfDisk_PhysicalDisk",
+  "usernameSecretRef": "WMI_USER",
+  "passwordSecretRef": "WMI_PASS"
+}
+```
+
+## Lưu ý
+
+- Chỉ chạy trên **Windows**. Trên Linux/macOS probe báo unsupported và bị skip.
+- Build tag `vms_heavy` — không có trong package agent mặc định.
+- WMI query execution hiện đang deferred theo roadmap — probe validate config nhưng chưa chạy query thực.

@@ -1,0 +1,75 @@
+---
+title: 'Probe: connection_mon'
+description: 'Giám sát kết nối TCP giữa process và service endpoint (bidirectional)'
+---
+
+## Mô tả
+
+Probe `connection_mon` kiểm tra xem một process cụ thể có đang giữ kết nối TCP ESTABLISHED tới một service endpoint hay không. Đây là probe hướng đến use case "trace between two servers" — kiểm tra link kết nối giữa 2 hệ thống.
+
+**Bidirectional matching**: Cùng một config có thể deploy trên **cả 2 đầu** của kết nối:
+- **Forward**: host này là source (local = source, remote = dest service)
+- **Reverse**: host này là dest (local = dest service, remote = source)
+
+Probe tự detect hướng và báo trong label `direction`.
+
+Yêu cầu cả `ProcessAdapter` và `ConnAdapter`.
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"connection_mon"` |
+| `name` | `string` | Có | — | Tên nhận diện cho link kết nối |
+| `processName` | `string` | Có | — | Tên process cần match. Glob, case-insensitive (giống `process_mon`) |
+| `executablePath` | `string` | Không | — | Đường dẫn executable để thu hẹp match (AND với processName) |
+| `destServiceIp` | `string` | Có | — | IP của service đầu dest (well-known end) |
+| `destServicePort` | `int` | Có | — | Port của service đầu dest (1–65535) |
+| `sourceServiceIp` | `string` | Không | — | IP đầu source (optional, lọc thêm) |
+| `sourceServicePort` | `int` | Không | — | Port đầu source (1–65535). Thường để trống vì source port là ephemeral |
+| `protocol` | `string` | Không | `"tcp"` | Chỉ hỗ trợ `"tcp"`. Connection ESTABLISHED chỉ có ý nghĩa với TCP |
+
+## Metrics
+
+| Metric | Type | Unit | Labels | Mô tả |
+|---|---|---|---|---|
+| `vms.connection_mon.status` | status | — | `name`, `dest_ip`, `dest_port`, `proto`, `process_name`*, `source_ip`*, `source_port`*, `direction`* | `up` hoặc `down` |
+| `vms.connection_mon.up` | gauge | — | (same labels) | `1` = có connection ESTABLISHED, `0` = không có |
+| `vms.agent.permission_missing` | gauge | — | `capability=CAP_SYS_PTRACE` | Emit khi agent không thể attribute socket tới PID |
+
+Labels có dấu `*` chỉ xuất hiện khi giá trị tương ứng được cấu hình hoặc match.
+
+## Ví dụ config
+
+**Kiểm tra app-server kết nối tới database:**
+
+```json
+{
+  "type": "connection_mon",
+  "name": "app-to-postgres",
+  "processName": "java",
+  "destServiceIp": "10.0.1.50",
+  "destServicePort": 5432
+}
+```
+
+**Kiểm tra nginx kết nối tới upstream:**
+
+```json
+{
+  "type": "connection_mon",
+  "name": "nginx-to-api",
+  "processName": "nginx",
+  "executablePath": "/usr/sbin/nginx",
+  "destServiceIp": "10.0.1.100",
+  "destServicePort": 8080,
+  "sourceServiceIp": "10.0.1.10"
+}
+```
+
+## Lưu ý
+
+- Probe resolve process trước (giống `process_mon`), sau đó kiểm tra socket của các PID match.
+- Dưới non-root agent thiếu `CAP_SYS_PTRACE`, agent chỉ thấy socket của chính user chạy agent → nếu process target thuộc user khác, kết quả là 0 (false negative). Probe emit `vms.agent.permission_missing` để flag.
+- Chỉ state TCP `ESTABLISHED` được xem là "normal/healthy" — `LISTEN`, `TIME_WAIT`, v.v. không tính.
+- Cùng config deploy trên cả 2 đầu: trên host A thấy `direction=forward`, trên host B thấy `direction=reverse`.

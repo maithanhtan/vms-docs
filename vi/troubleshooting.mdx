@@ -1,0 +1,88 @@
+---
+title: 'Troubleshooting'
+description: 'Hướng dẫn xử lý sự cố vận hành VMS'
+---
+
+<div style={{ width: '100%', height: 4, marginBottom: 24, borderRadius: 2, background: 'rgba(0,0,0,0.08)' }}>
+  <div style={{ width: '100%', height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--accent-primary) 0%, var(--accent-light) 50%, var(--accent-dark) 100%)' }} />
+</div>
+
+Trang này dùng cho vận hành VMS master, VMS agent collector, dashboard, alert và synthetic/readiness check. Mục tiêu là triage nhanh theo tầng Infrastructure -> Service -> User -> Business Flow, sau đó route đúng owner.
+
+## Quy tắc triage nhanh
+
+<Steps>
+  <Step title="Xác định scope ảnh hưởng">
+    Kiểm tra issue chỉ ảnh hưởng một host/service, một collector, một dashboard hay toàn bộ VMS master.
+  </Step>
+  <Step title="Kiểm tra freshness">
+    So sánh thời điểm metric cuối, heartbeat cuối, thời điểm alert phát sinh và maintenance window hiện tại.
+  </Step>
+  <Step title="Khoanh vùng layer">
+    Phân loại issue thuộc Infrastructure, Service, User check hay Business Flow để tránh route sai owner.
+  </Step>
+  <Step title="Đối chiếu inventory">
+    Kiểm tra tag `system`, `environment`, `service`, `owner`, `criticality`, `scope` trước khi kết luận mất dữ liệu.
+  </Step>
+  <Step title="Escalate có bằng chứng">
+    Khi cần escalate, gửi kèm collector id, host, service, dashboard, alert id, timestamp và log liên quan.
+  </Step>
+</Steps>
+
+## Collector không gửi dữ liệu
+
+| Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
+|---|---|---|
+| Master không thấy heartbeat | Collector chưa start, sai token, sai ingest URL | Kiểm tra service status, token file, DNS, TLS và ingest URL |
+| Heartbeat có nhưng metric rỗng | Module host metric chưa bật hoặc thiếu quyền đọc | Kiểm tra cấu hình `[host_metrics]`, user chạy collector và permission |
+| Dữ liệu lúc có lúc mất | Network chập chờn, firewall idle timeout, retry quá thấp | Kiểm tra egress tới master, tăng retry/backoff và keepalive |
+| Chỉ một service mất check | Process name, port hoặc health path sai | Đối chiếu inventory, kiểm tra process thật và test port từ collector |
+| Collector duplicate | Hai collector dùng cùng id hoặc hostname tag | Tạo id riêng, sửa tag và xóa instance duplicate khỏi inventory |
+
+## Dashboard stale hoặc thiếu dữ liệu
+
+| Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
+|---|---|---|
+| Dashboard không cập nhật | Ingest queue chậm, time-series store chậm, query range sai | Kiểm tra health master, queue ingest, time range và timestamp collector |
+| Một nhóm host không hiện | Thiếu tag hoặc tag sai environment/system | Chuẩn hoá tag và refresh inventory |
+| KPI/SLA sai | Service chưa gắn criticality hoặc owner | Bổ sung metadata và chạy lại aggregation |
+| Topology thiếu edge | Connection check chưa khai báo hoặc dependency rename | Cập nhật connection inventory và map lại source/target |
+
+## Alert noise
+
+| Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
+|---|---|---|
+| Alert flap liên tục | Threshold quá sát, retry thấp, check timeout ngắn | Tăng retry, dùng debounce, chỉnh threshold theo baseline |
+| Alert trong maintenance | Chưa khai báo maintenance window hoặc tag không match | Tạo maintenance window theo `system/environment/service` |
+| Alert sai owner | Tag owner sai hoặc routing rule quá rộng | Sửa tag owner, tách rule theo system/service |
+| Quá nhiều cảnh báo Low | Chưa gom alert hoặc thiếu suppression | Group alert theo service, dùng suppression cho symptom phụ |
+
+## Service health check fail
+
+| Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
+|---|---|---|
+| TCP fail | Service down, port đổi, firewall chặn | Kiểm tra process, listen port và firewall từ node collector |
+| HTTP health fail | Health path sai, status code khác expected, TLS lỗi | Kiểm tra URL, method, expected status, certificate và proxy |
+| Latency tăng | Network chậm, dependency timeout, host quá tải | So sánh network, CPU, memory, disk IO và downstream check |
+| Process check fail | Tên process đổi sau deploy | Cập nhật process matcher theo release mới |
+
+## Pre-market readiness fail
+
+| Bước | Kiểm tra |
+|---|---|
+| 1 | Xem step nào fail: host, service, dependency, synthetic hay report delivery |
+| 2 | Kiểm tra có maintenance/deploy trước 8:30 không |
+| 3 | Đối chiếu dashboard Overall và dashboard khối liên quan |
+| 4 | Chạy lại check thủ công từ collector/probe node nếu cần |
+| 5 | Gửi report có trạng thái pass/fail, owner và action next step |
+
+## Khi cần gửi thông tin hỗ trợ
+
+| Thông tin | Ví dụ |
+|---|---|
+| Collector | Collector id, hostname, version, environment |
+| Target | System/service/dependency bị ảnh hưởng |
+| Timestamp | Thời điểm bắt đầu lỗi và thời điểm metric cuối |
+| Dashboard | Tên dashboard, panel, query range |
+| Alert | Alert id, severity, owner, routing channel |
+| Log | Collector log, master ingest log hoặc synthetic run log |

@@ -1,0 +1,70 @@
+---
+title: 'Probe: connection'
+description: 'Kiểm tra số lượng connection trên host theo filter'
+---
+
+## Mô tả
+
+Probe `connection` đọc bảng connection của host (không mở connection mới) và đếm số entry match các filter được cấu hình. Hỗ trợ filter theo process, endpoint, protocol và state.
+
+Yêu cầu platform adapter `ConnAdapter`. Nếu dùng filter `processName`/`processPath`, cần quyền đọc `/proc/[pid]/fd` của process khác (root hoặc `CAP_SYS_PTRACE`).
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"connection"` |
+| `name` | `string` | Có | — | Tên nhận diện cho probe (dùng trong message và log) |
+| `description` | `string` | Không | — | Mô tả mục đích kiểm tra |
+| `processName` | `string` | Không | — | Lọc theo tên process. Cần `CAP_SYS_PTRACE` trên Linux |
+| `processPath` | `string` | Không | — | Lọc theo đường dẫn executable. Cần `CAP_SYS_PTRACE` trên Linux |
+| `localAddress` | `string` | Không | — | Lọc theo local IP address |
+| `localPort` | `int` | Không | — | Lọc theo local port |
+| `remoteAddress` | `string` | Không | — | Lọc theo remote IP address |
+| `remotePort` | `int` | Không | — | Lọc theo remote port |
+| `protocol` | `string` | Không | — | Lọc theo protocol: `"tcp"` hoặc `"udp"` |
+| `states` | `string[]` | Không | — | Lọc theo connection state (ví dụ `["ESTABLISHED", "LISTEN"]`) |
+| `minCount` | `int` | Không | `1` | Số connection tối thiểu. count < minCount → `down` |
+| `maxCount` | `int` | Không | — | Số connection tối đa. count > maxCount → `warning` |
+
+## Metrics
+
+| Metric | Type | Unit | Mô tả |
+|---|---|---|---|
+| `vms.connection.status` | status | — | `up`, `down` hoặc `warning` |
+| `vms.connection.count` | gauge | — | Số connection match |
+| `vms.agent.permission_missing` | gauge | — | Emit khi `processName`/`processPath` được cấu hình nhưng thiếu `CAP_SYS_PTRACE` |
+
+## Ví dụ config
+
+**Kiểm tra nginx có connection tới DB:**
+
+```json
+{
+  "type": "connection",
+  "name": "nginx-to-postgres",
+  "processName": "nginx",
+  "remotePort": 5432,
+  "states": ["ESTABLISHED"],
+  "minCount": 1
+}
+```
+
+**Kiểm tra số connection LISTEN trên port:**
+
+```json
+{
+  "type": "connection",
+  "name": "app-listen-8080",
+  "localPort": 8080,
+  "states": ["LISTEN"],
+  "minCount": 1,
+  "maxCount": 1
+}
+```
+
+## Lưu ý
+
+- Probe **không mở** connection mới — chỉ đọc bảng connection hiện có của host.
+- Khi thiếu `CAP_SYS_PTRACE`, filter `processName`/`processPath` match 0 vì agent không thể attribute socket tới PID. Probe emit `vms.agent.permission_missing{capability=CAP_SYS_PTRACE}` để gap hiển thị.
+- Tất cả filter là AND logic — connection phải match **tất cả** filter được cấu hình.

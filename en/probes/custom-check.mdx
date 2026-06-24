@@ -1,0 +1,50 @@
+---
+title: 'Probe: custom_check'
+description: 'Run an approved executable and evaluate its result'
+---
+
+## Description
+
+The `custom_check` probe runs an approved executable and evaluates exit code, stdout content, or JSON output. This is the only probe that spawns a process — compiled separately with the `vms_custom_check` build tag.
+
+<Warning>
+**Security requirements:**
+- Executable **must be an absolute path** (no PATH lookup).
+- Probe **refuses to run as root (uid 0)** or Windows LocalSystem.
+- No shell — binary is invoked directly with argv.
+- Stdout capped at 1 MiB.
+</Warning>
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"custom_check"` |
+| `executable` | `string` | Yes | — | Absolute path to the executable |
+| `args` | `string[]` | No | — | Arguments to pass |
+| `expectedExitCode` | `int` | No | `0` | Expected exit code. Mismatch → `down` |
+| `expectedStdoutContains` | `string` | No | — | String that must appear in stdout |
+| `parseJsonOutput` | `bool` | No | `false` | Parse stdout as JSON. Numeric/boolean fields become gauge metrics |
+
+## Metrics
+
+| Metric | Type | Labels | Description |
+|---|---|---|---|
+| `vms.custom_check.status` | status | — | `up` or `down` |
+| `vms.custom_check.value` | gauge | `key` | Per-field values when `parseJsonOutput = true` |
+
+## Example config
+
+```json
+{
+  "type": "custom_check",
+  "executable": "/opt/vms/checks/check-core.sh",
+  "args": ["--quick"],
+  "expectedExitCode": 0
+}
+```
+
+## Notes
+
+- Build tag `vms_custom_check` — not included in the default agent package.
+- JSON parse only supports top-level object with numeric/boolean fields.

@@ -1,0 +1,51 @@
+---
+title: 'Probe: tls_cert'
+description: 'Theo dõi hạn TLS certificate'
+---
+
+## Mô tả
+
+Probe `tls_cert` kết nối TLS đến host, đọc leaf certificate và tính số ngày còn lại trước khi hết hạn. Hỗ trợ ngưỡng cảnh báo `warning` và `critical`.
+
+Certificate verification bị tắt cố ý — probe đọc được cả cert expired hoặc self-signed để báo số ngày còn lại chính xác thay vì fail khi handshake.
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"tls_cert"` |
+| `host` | `string` | Có | — | Host dùng để connect và gửi SNI |
+| `port` | `int` | Có | — | TLS port (1–65535) |
+| `warningDays` | `int` | Không | `0` | Số ngày còn lại để chuyển sang `warning`. `0` = không cảnh báo |
+| `criticalDays` | `int` | Không | `0` | Số ngày còn lại để chuyển sang `critical`. `0` = không cảnh báo |
+
+<Warning>
+Nếu cả `warningDays` và `criticalDays` đều > 0, `criticalDays` phải ≤ `warningDays`. Nếu vi phạm, probe báo lỗi khi khởi tạo.
+</Warning>
+
+## Metrics
+
+| Metric | Type | Unit | Mô tả |
+|---|---|---|---|
+| `vms.tls_cert.days_remaining` | gauge | days | Số ngày còn lại trước khi cert hết hạn. `-1` nếu TLS handshake thất bại |
+
+## Status logic
+
+| Điều kiện | Status | Severity |
+|---|---|---|
+| `daysRemaining > warningDays` | `up` | `info` |
+| `daysRemaining ≤ warningDays` | `warning` | `warning` |
+| `daysRemaining ≤ criticalDays` | `critical` | `critical` |
+| TLS handshake thất bại | `down` | `critical` |
+
+## Ví dụ config
+
+```json
+{
+  "type": "tls_cert",
+  "host": "app.verolabs.co",
+  "port": 443,
+  "warningDays": 30,
+  "criticalDays": 7
+}
+```

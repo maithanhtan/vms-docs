@@ -1,0 +1,40 @@
+---
+title: 'Probe: service_mon'
+description: 'Check systemd or Windows service state'
+---
+
+## Description
+
+The `service_mon` probe checks the state of an OS service (systemd unit on Linux, Windows service on Windows). Supports expecting `running` or `stopped` state.
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"service_mon"` |
+| `manager` | `string` | Yes | — | `"systemd"` (Linux) or `"windows_service"` (Windows) |
+| `serviceName` | `string` | Yes | — | Service/unit name to check |
+| `expectedState` | `string` | No | `"running"` | Expected state: `"running"` or `"stopped"` |
+
+## Metrics
+
+| Metric | Type | Description |
+|---|---|---|
+| `vms.service_mon.status` | status | `up` (matches) or `down` |
+| `vms.service_mon.restart_count` | counter | Restart count (systemd .service units only) |
+
+## Example config
+
+```json
+{
+  "type": "service_mon",
+  "manager": "systemd",
+  "serviceName": "nginx",
+  "expectedState": "running"
+}
+```
+
+## Notes
+
+- `manager` must match the host OS. Cross-OS (e.g. `systemd` on Windows) fails at construction.
+- `restart_count` is only available for systemd `.service` units.

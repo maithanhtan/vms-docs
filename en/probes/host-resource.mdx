@@ -1,0 +1,76 @@
+---
+title: 'Probe: host_resource'
+description: 'Collect CPU, memory, disk, disk IO, and network metrics from the host'
+---
+
+## Description
+
+The `host_resource` probe collects host-level resource metrics: CPU usage, memory usage, disk utilization, disk I/O, and network traffic. This is a pure collector — it emits gauge/counter metrics only, no check result.
+
+Requires the `HostAdapter` platform adapter — supported on Linux and Windows only. If the adapter is unavailable on the current platform, the probe is skipped at construction.
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"host_resource"` |
+| `collectCpu` | `bool` | No | `false` | Enable CPU usage percent collection |
+| `collectMemory` | `bool` | No | `false` | Enable memory usage percent collection |
+| `collectDisk` | `bool` | No | `false` | Enable disk usage percent collection per mount point |
+| `collectDiskIo` | `bool` | No | `false` | Enable disk read/write bytes collection per device |
+| `collectNetwork` | `bool` | No | `false` | Enable network rx/tx bytes, errors, drops collection per interface |
+| `diskMounts` | `string[]` | No | all mounts | Mount points to monitor. Empty = all |
+| `diskDevices` | `string[]` | No | all devices | Disk devices for I/O monitoring. Empty = all real block devices (skips loop/ram) |
+| `networkInterfaces` | `string[]` | No | all interfaces | Network interfaces to monitor. Empty = all |
+
+<Warning>
+At least one `collect*` flag must be enabled, otherwise the probe fails at construction.
+</Warning>
+
+## Metrics
+
+| Metric | Type | Unit | Labels | Condition |
+|---|---|---|---|---|
+| `vms.host.cpu.usage_percent` | gauge | percent | — | `collectCpu = true` |
+| `vms.host.memory.usage_percent` | gauge | percent | — | `collectMemory = true` |
+| `vms.host.disk.usage_percent` | gauge | percent | `mount` | `collectDisk = true` |
+| `vms.host.disk.read_bytes` | counter | bytes | `device` | `collectDiskIo = true` |
+| `vms.host.disk.write_bytes` | counter | bytes | `device` | `collectDiskIo = true` |
+| `vms.host.network.rx_bytes` | counter | bytes | `iface` | `collectNetwork = true` |
+| `vms.host.network.tx_bytes` | counter | bytes | `iface` | `collectNetwork = true` |
+| `vms.host.network.rx_errors` | counter | — | `iface` | `collectNetwork = true` |
+| `vms.host.network.rx_drops` | counter | — | `iface` | `collectNetwork = true` |
+| `vms.host.network.tx_errors` | counter | — | `iface` | `collectNetwork = true` |
+| `vms.host.network.tx_drops` | counter | — | `iface` | `collectNetwork = true` |
+| `vms.host.uptime_seconds` | gauge | seconds | — | Always collected when supported |
+
+## Example config
+
+```json
+{
+  "type": "host_resource",
+  "collectCpu": true,
+  "collectMemory": true,
+  "collectDisk": true,
+  "collectDiskIo": true,
+  "collectNetwork": true,
+  "diskMounts": ["/", "/data"],
+  "diskDevices": ["sda", "nvme0n1"],
+  "networkInterfaces": ["eth0", "bond0"]
+}
+```
+
+**Minimal config:**
+
+```json
+{
+  "type": "host_resource",
+  "collectCpu": true,
+  "collectMemory": true
+}
+```
+
+## Notes
+
+- If one metric family fails (e.g. nonexistent disk mount), the probe continues collecting other families and reports `degraded` status rather than failing entirely.
+- Counter metrics (disk I/O, network) are cumulative since boot — downstream computes rates by differencing consecutive samples.

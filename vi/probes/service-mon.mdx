@@ -1,0 +1,54 @@
+---
+title: 'Probe: service_mon'
+description: 'Kiểm tra trạng thái systemd hoặc Windows service'
+---
+
+## Mô tả
+
+Probe `service_mon` kiểm tra trạng thái của một OS service (systemd unit trên Linux, Windows service trên Windows). Hỗ trợ kỳ vọng trạng thái `running` hoặc `stopped`.
+
+Yêu cầu platform adapter `ServiceAdapter`. Probe validate manager phải match OS hiện tại (ví dụ `systemd` không chạy trên Windows).
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"service_mon"` |
+| `manager` | `string` | Có | — | `"systemd"` (Linux) hoặc `"windows_service"` (Windows) |
+| `serviceName` | `string` | Có | — | Tên service/unit cần kiểm tra |
+| `expectedState` | `string` | Không | `"running"` | Trạng thái kỳ vọng: `"running"` hoặc `"stopped"` |
+
+## Metrics
+
+| Metric | Type | Unit | Mô tả |
+|---|---|---|---|
+| `vms.service_mon.status` | status | — | `up` (khớp kỳ vọng) hoặc `down` (không khớp hoặc unknown) |
+| `vms.service_mon.restart_count` | counter | — | Số lần restart (chỉ emit khi manager hỗ trợ — systemd .service units) |
+
+## Ví dụ config
+
+```json
+{
+  "type": "service_mon",
+  "manager": "systemd",
+  "serviceName": "nginx",
+  "expectedState": "running"
+}
+```
+
+**Windows service:**
+
+```json
+{
+  "type": "service_mon",
+  "manager": "windows_service",
+  "serviceName": "SQLServer",
+  "expectedState": "running"
+}
+```
+
+## Lưu ý
+
+- `manager` phải match OS: `systemd` trên Linux, `windows_service` trên Windows. Cross-OS sẽ lỗi khi khởi tạo.
+- `restart_count` chỉ có với systemd `.service` unit — các unit type khác (timer, socket, v.v.) không expose restart count.
+- Nếu service không tìm thấy hoặc ở trạng thái unknown → status `down`, severity `critical`.

@@ -1,0 +1,48 @@
+---
+title: 'Probe: container_mon'
+description: 'Monitor Docker / Docker Swarm containers'
+---
+
+## Description
+
+The `container_mon` probe monitors Docker and Docker Swarm containers via the Docker Engine API (HTTP over unix socket). Tracks running state, restart count, and optional CPU/memory stats.
+
+Build tag `vms_heavy`.
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"container_mon"` |
+| `runtime` | `string` | Yes | — | `"docker"` or `"docker_swarm"` |
+| `runtimeEndpoint` | `string` | No | `/var/run/docker.sock` | Docker socket path |
+| `containerNamePattern` | `string` | No | — | Regex to match container names. Empty = all |
+| `serviceName` | `string` | No | — | Docker Swarm service name |
+| `collectStats` | `bool` | No | `false` | Collect CPU% and memory for running containers |
+
+## Metrics
+
+| Metric | Type | Unit | Labels | Description |
+|---|---|---|---|---|
+| `vms.container_mon.status` | status | — | `container` | Per-container state |
+| `vms.container_mon.restart_count` | counter | — | `container` | Restart count |
+| `vms.container_mon.cpu_percent` | gauge | percent | `container` | CPU usage |
+| `vms.container_mon.memory_bytes` | gauge | bytes | `container` | Memory usage |
+| `vms.container_mon.memory_percent` | gauge | percent | `container` | Memory usage % |
+
+## Example config
+
+```json
+{
+  "type": "container_mon",
+  "runtime": "docker",
+  "containerNamePattern": "core-.*",
+  "collectStats": true
+}
+```
+
+## Notes
+
+- Max **50 containers** matched per run.
+- Docker socket unreachable → status `unknown`, emits `vms.agent.permission_missing{capability=docker.sock}`.
+- Build tag `vms_heavy` — not in default agent package.

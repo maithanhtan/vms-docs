@@ -1,0 +1,75 @@
+---
+title: 'Setup your first probe'
+description: 'Step-by-step guide on how to configure and manage monitoring probes on VMS Agent'
+---
+
+## Probe Configuration Overview
+
+Once you have successfully installed the VMS Agent Collector, you can start configuring Probes to monitor host resources, network ports, containers, logs, or service endpoints.
+
+The VMS Dashboard interface allows you to view the list of active agents, monitor their health status, and manage their corresponding probe configurations:
+
+![VMS Agent & Probe Management Dashboard](/images/agent_setup_dashboard.png)
+
+## Steps to Configure a New Probe
+
+You can add or update monitoring probes through the VMS Dashboard or by editing the Agent's configuration file directly.
+
+<Steps>
+  <Step title="Identify the Target">
+    Determine what host, service, or endpoint needs monitoring. For example, to check the HTTP endpoint of a web service at `https://api.vero.io/health`.
+  </Step>
+  <Step title="Select the Probe Type">
+    Choose the appropriate probe type based on your target:
+    - Use `host_resource` for monitoring CPU, RAM, or Disk.
+    - Use `http_check` for monitoring HTTP/HTTPS endpoints.
+    - Use `check_port` for checking TCP port reachability (e.g. SSH port 22, database ports).
+  </Step>
+  <Step title="Define the Configuration (JSON / YAML)">
+    Configure the probe with basic attributes like identifier `code`, display `name`, run `intervalSeconds`, and the specific probe `config` block.
+    
+    Example configuration for an HTTP Check probe:
+    ```json
+    {
+      "code": "api-health-check",
+      "name": "HTTP check API Vero",
+      "type": "http_check",
+      "intervalSeconds": 60,
+      "timeoutMs": 5000,
+      "enabled": true,
+      "config": {
+        "url": "https://api.vero.io/health",
+        "method": "GET",
+        "expectedStatus": 200
+      }
+    }
+    ```
+  </Step>
+  <Step title="Apply and Reload Configuration">
+    - If using the VMS Dashboard, click **Save / Apply** to deploy the configuration changes to the Agent.
+    - If editing files manually, save the configuration file.
+    - The Agent automatically pulls new configurations based on `VMS_CONFIG_REFRESH_SECONDS` (usually every 30s to 60s) without needing a service restart.
+  </Step>
+</Steps>
+
+## How to Verify if a Probe is Successful or Failing
+
+### 1. Check Status on VMS Dashboard
+- **Success State (Green):** The probe returns a valid response, and all assertions (if any) pass. The dashboard indicates this with a `Green` status dot.
+- **Failed State (Red):** The probe fails to connect or assertion fails (e.g. HTTP status 500 instead of 200). The dashboard status changes to `Red` or `Critical`, and alerts are sent out to the configured channels.
+
+### 2. Check logs on the Host
+You can view the VMS Agent service logs to verify that configuration updates are received and probes are executing successfully:
+
+```bash
+# View real-time logs of VMS Agent
+sudo journalctl -u vms-monitor-agent -f --no-pager
+```
+
+You should see log output similar to this:
+```text
+INFO[0030] [Config] Fetching latest probes configuration...
+INFO[0031] [Config] Found 2 active probes (host_resource, http_check)
+INFO[0060] [Probe:api-health-check] HTTP GET https://api.vero.io/health succeeded, status code 200
+INFO[0060] [Ingress] Reporting 1 probe results to vms-ingress...
+```

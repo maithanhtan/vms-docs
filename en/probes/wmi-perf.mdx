@@ -1,0 +1,38 @@
+---
+title: 'Probe: wmi_perf'
+description: 'Run WMI queries on Windows'
+---
+
+## Description
+
+The `wmi_perf` probe runs WMI (Windows Management Instrumentation) queries to collect performance counters from Windows hosts. WMI is a Windows-only API — reports unsupported on non-Windows.
+
+Build tag `vms_heavy`. Actual WMI/COM execution is currently deferred per roadmap — the probe validates config and credentials but does not yet execute queries on Windows.
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"wmi_perf"` |
+| `host` | `string` | No | — | Windows host target. Empty = localhost |
+| `namespace` | `string` | No | — | WMI namespace (e.g. `"root\\cimv2"`) |
+| `query` | `string` | Yes | — | WMI query string |
+| `usernameSecretRef` | `string` | No | — | Secret ref for username |
+| `passwordSecretRef` | `string` | No | — | Secret ref for password |
+
+## Example config
+
+```json
+{
+  "type": "wmi_perf",
+  "host": "win-core-01",
+  "namespace": "root\\\\cimv2",
+  "query": "SELECT PercentProcessorTime FROM Win32_PerfFormattedData_PerfOS_Processor"
+}
+```
+
+## Notes
+
+- **Windows only**. Reports unsupported on Linux/macOS.
+- Build tag `vms_heavy` — not in default agent package.
+- WMI query execution is currently deferred — config validation only.

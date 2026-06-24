@@ -1,0 +1,75 @@
+---
+title: 'Probe: process_mon'
+description: 'Giám sát process đang chạy, count, CPU/memory và per-process detail'
+---
+
+## Mô tả
+
+Probe `process_mon` kiểm tra process đang chạy trên host, đếm số lượng và tùy chọn thu thập CPU/memory aggregate hoặc per-process detail. Matching theo tên process (glob, case-insensitive) và tùy chọn executable path.
+
+Yêu cầu platform adapter `ProcessAdapter`.
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"process_mon"` |
+| `processName` | `string` | Có | — | Tên process cần match. Hỗ trợ glob (`*`, `?`, `[`). Case-insensitive. Ví dụ: `"nginx"`, `"java*"`, `"node*"` |
+| `executablePath` | `string` | Không | — | Đường dẫn executable đầy đủ để thu hẹp match (AND với processName). Exact match |
+| `minCount` | `int` | Không | `1` | Số process tối thiểu. Nếu count < minCount → status `down`, severity `critical` |
+| `maxCount` | `int` | Không | — | Số process tối đa. Nếu count > maxCount → status `warning`, severity `warning` |
+| `collectCpuMemory` | `bool` | Không | `false` | Thu thập tổng CPU% và memory bytes aggregate của tất cả process match |
+| `collectPerProcess` | `bool` | Không | `false` | Thu thập detail per-process (CPU, RSS, VMS, threads, FDs, disk I/O, uptime). Mỗi process có label `pid` và `name` |
+| `collectConnections` | `bool` | Không | = `collectPerProcess` | Thu thập số open connection của mỗi matched PID. Mặc định theo `collectPerProcess`. Cần `ConnAdapter` và có thể cần `CAP_SYS_PTRACE` |
+| `maxProcesses` | `int` | Không | `20` | Giới hạn số process emit per-process detail (busiest-by-CPU được giữ). Dùng để bound metric cardinality |
+
+## Metrics
+
+| Metric | Type | Unit | Labels | Điều kiện |
+|---|---|---|---|---|
+| `vms.process_mon.running` | status | — | — | Luôn emit |
+| `vms.process_mon.count` | gauge | — | — | Luôn emit |
+| `vms.process_mon.cpu_percent` | gauge | percent | — | `collectCpuMemory = true` |
+| `vms.process_mon.memory_bytes` | gauge | bytes | — | `collectCpuMemory = true` |
+| `vms.process.cpu_percent` | gauge | percent | `pid`, `name`, `user` | `collectPerProcess = true` |
+| `vms.process.memory_rss_bytes` | gauge | bytes | `pid`, `name`, `user` | `collectPerProcess = true` |
+| `vms.process.memory_vms_bytes` | gauge | bytes | `pid`, `name`, `user` | `collectPerProcess = true` |
+| `vms.process.num_threads` | gauge | — | `pid`, `name`, `user` | `collectPerProcess = true` |
+| `vms.process.num_fds` | gauge | — | `pid`, `name`, `user` | `collectPerProcess = true` |
+| `vms.process.disk_read_bytes` | counter | bytes | `pid`, `name`, `user` | `collectPerProcess = true` |
+| `vms.process.disk_write_bytes` | counter | bytes | `pid`, `name`, `user` | `collectPerProcess = true` |
+| `vms.process.uptime_seconds` | gauge | seconds | `pid`, `name`, `user` | `collectPerProcess = true` và process có createTime |
+| `vms.process.num_connections` | gauge | — | `pid`, `name`, `user` | `collectConnections = true` |
+
+## Ví dụ config
+
+**Kiểm tra nginx chạy ít nhất 1 process:**
+
+```json
+{
+  "type": "process_mon",
+  "processName": "nginx",
+  "minCount": 1,
+  "collectCpuMemory": true
+}
+```
+
+**Per-process detail cho Java app:**
+
+```json
+{
+  "type": "process_mon",
+  "processName": "java",
+  "executablePath": "/usr/lib/jvm/java-17/bin/java",
+  "minCount": 1,
+  "collectPerProcess": true,
+  "collectConnections": true,
+  "maxProcesses": 10
+}
+```
+
+## Lưu ý
+
+- `commandLinePattern` regex đã bị **loại bỏ** — dùng `processName` glob thay thế.
+- Khi `collectPerProcess = true` và số process match vượt `maxProcesses`, chỉ giữ các process có CPU% cao nhất.
+- Per-process detail cần platform adapter — trên một số OS hoặc user khác, một số field (CPU, memory, disk I/O) có thể trả về 0 nếu thiếu quyền.

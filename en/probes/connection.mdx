@@ -1,0 +1,53 @@
+---
+title: 'Probe: connection'
+description: 'Check connection count on host by filter'
+---
+
+## Description
+
+The `connection` probe reads the host connection table (never opens new connections) and counts entries matching configured filters. Supports filtering by process, endpoint, protocol, and state.
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"connection"` |
+| `name` | `string` | Yes | — | Probe identifier (used in messages and logs) |
+| `description` | `string` | No | — | Purpose description |
+| `processName` | `string` | No | — | Filter by process name. Needs `CAP_SYS_PTRACE` on Linux |
+| `processPath` | `string` | No | — | Filter by executable path. Needs `CAP_SYS_PTRACE` on Linux |
+| `localAddress` | `string` | No | — | Filter by local IP address |
+| `localPort` | `int` | No | — | Filter by local port |
+| `remoteAddress` | `string` | No | — | Filter by remote IP address |
+| `remotePort` | `int` | No | — | Filter by remote port |
+| `protocol` | `string` | No | — | Filter by protocol: `"tcp"` or `"udp"` |
+| `states` | `string[]` | No | — | Filter by connection state (e.g. `["ESTABLISHED", "LISTEN"]`) |
+| `minCount` | `int` | No | `1` | Minimum connection count. Below → `down` |
+| `maxCount` | `int` | No | — | Maximum connection count. Above → `warning` |
+
+## Metrics
+
+| Metric | Type | Description |
+|---|---|---|
+| `vms.connection.status` | status | `up`, `down`, or `warning` |
+| `vms.connection.count` | gauge | Number of matching connections |
+| `vms.agent.permission_missing` | gauge | Emitted when `processName`/`processPath` is configured but `CAP_SYS_PTRACE` is missing |
+
+## Example config
+
+```json
+{
+  "type": "connection",
+  "name": "nginx-to-postgres",
+  "processName": "nginx",
+  "remotePort": 5432,
+  "states": ["ESTABLISHED"],
+  "minCount": 1
+}
+```
+
+## Notes
+
+- The probe **does not open** new connections — it only reads the existing host connection table.
+- All filters use AND logic — a connection must match **all** configured filters.
+- Missing `CAP_SYS_PTRACE` with process filters results in 0 matches and emits `vms.agent.permission_missing`.

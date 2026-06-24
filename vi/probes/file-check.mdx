@@ -1,0 +1,55 @@
+---
+title: 'Probe: file_check'
+description: 'Kiểm tra file tồn tại, size và tuổi file'
+---
+
+## Mô tả
+
+Probe `file_check` kiểm tra một file trên filesystem: tồn tại, kích thước và tuổi (modification time). Dùng cho health check dạng "file marker" hoặc giám sát file log/data.
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"file_check"` |
+| `filePath` | `string` | Có | — | Đường dẫn file cần kiểm tra |
+| `mustExist` | `bool` | Không | `true` | `true`: file phải tồn tại → không có = `down`. `false`: file không tồn tại vẫn là `up` |
+| `minSizeBytes` | `int64` | Không | — | Size tối thiểu (bytes). File nhỏ hơn → `down` |
+| `maxSizeBytes` | `int64` | Không | — | Size tối đa (bytes). File lớn hơn → `down` |
+| `maxAgeSeconds` | `int64` | Không | — | Tuổi file tối đa (giây). File cũ hơn → `down` |
+
+## Metrics
+
+| Metric | Type | Unit | Mô tả |
+|---|---|---|---|
+| `vms.file_check.status` | status | — | `up` hoặc `down` |
+
+Check result value là file size (bytes).
+
+## Ví dụ config
+
+```json
+{
+  "type": "file_check",
+  "filePath": "/var/log/app/app.log",
+  "mustExist": true,
+  "maxAgeSeconds": 600
+}
+```
+
+**Kiểm tra file không quá lớn:**
+
+```json
+{
+  "type": "file_check",
+  "filePath": "/tmp/export.csv",
+  "mustExist": true,
+  "maxSizeBytes": 104857600,
+  "minSizeBytes": 1
+}
+```
+
+## Lưu ý
+
+- Nhiều assertion có thể fail cùng lúc — tất cả failure đều được gom vào message.
+- `maxAgeSeconds` so sánh dựa trên modification time (mtime) của file.

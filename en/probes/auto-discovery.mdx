@@ -1,0 +1,49 @@
+---
+title: 'Probe: auto_discovery'
+description: 'Auto-discover connection inventory and service topology'
+---
+
+## Description
+
+The `auto_discovery` probe reads the host connection table and records a connection inventory for monitored processes. Supports emitting per-connection inventory metrics and/or topology data (listen ports + connection edges) for service dependency mapping.
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"auto_discovery"` |
+| `processProbeIds` | `string[]` | No | — | Process probe IDs — agent resolves to processNames automatically |
+| `processNames` | `string[]` | No | — | Process names to discover connections for |
+| `includeStates` | `string[]` | No | — | Only include these connection states |
+| `excludeRemoteAddresses` | `string[]` | No | — | Exclude connections to these remote addresses |
+| `excludeRemotePorts` | `int[]` | No | — | Exclude connections to these remote ports |
+| `emitConnectionMetrics` | `bool` | No | `false` | Emit per-connection inventory metrics |
+| `emitTopology` | `bool` | No | `false` | Emit topology data (listen registry + connection edges) |
+
+## Metrics
+
+| Metric | Type | Labels | Condition |
+|---|---|---|---|
+| `vms.connection.discovered_count` | gauge | — | Always |
+| `vms.connection.discovered` | gauge | `process_name`, `local_addr`, `local_port`, `remote_addr`, `remote_port`, `state`, `protocol` | `emitConnectionMetrics = true`. Max 200 series |
+| `vms.topology.listen_count` | gauge | — | `emitTopology = true` |
+| `vms.topology.listen` | gauge | `process_name`, `local_addr`, `local_port`, `protocol` | `emitTopology = true`. Max 200 |
+| `vms.topology.edge_count` | gauge | — | `emitTopology = true` |
+| `vms.topology.edge` | gauge | `process_name`, `local_addr`, `local_port`, `remote_addr`, `remote_port`, `protocol` | `emitTopology = true`. Max 500 |
+
+## Example config
+
+```json
+{
+  "type": "auto_discovery",
+  "processNames": ["nginx", "java"],
+  "includeStates": ["ESTABLISHED"],
+  "emitConnectionMetrics": true,
+  "emitTopology": true
+}
+```
+
+## Notes
+
+- Series are capped for cardinality: inventory max 200, listen max 200, edges max 500. Total counts are always accurate.
+- `processProbeIds` are resolved to `processNames` by the agent before the probe runs.

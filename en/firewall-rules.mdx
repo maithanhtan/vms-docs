@@ -1,0 +1,39 @@
+---
+title: 'Firewall Rules'
+description: 'Configure firewall rules and communication ports for the VMS system'
+---
+
+<div style={{ width: '100%', height: 4, marginBottom: 24, borderRadius: 2, background: 'rgba(0,0,0,0.08)' }}>
+  <div style={{ width: '100%', height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--accent-primary) 0%, var(--accent-light) 50%, var(--accent-dark) 100%)' }} />
+</div>
+
+To ensure stable communication between VMS Master and VMS Agents, infrastructure and operations teams must configure the firewall rules to permit traffic on the following network ports.
+
+## Firewall Rules Table
+
+| Source | Destination | Ports | Description & Purpose |
+|---|---|---|---|
+| Customer server (Agent) | VMS Server | `31082, 443, 31080, 31081` | API Port for agents to push metrics/logs and fetch configurations |
+| VMS Server | Internet | `80, 443` | Outbound internet access to deploy K8s/K3s and pull docker images from GitLab |
+| Jump/VPN | VMS Server | `31082, 443, 31080, 31081, 22, 16443, 6443` | Access VMS Server for administration, management, and deployment |
+
+<Info>
+Port **31082** replaces the default HTTP port 80 to enhance security.
+</Info>
+
+## Troubleshooting Connectivity Issues
+
+If you encounter connection drops, handshake failures, or timeout errors, perform the following verification steps:
+
+### 1. Verification from the Agent side (Customer Server)
+Check reachability to the Ingress HTTPS endpoint:
+```bash
+# Test connection to the Ingress HTTPS API
+curl -k https://ingest.vms.verolabs.co/healthz
+```
+
+### 2. Verification from the Master Server side
+Verify that services and Ingress/NodePorts are listening properly on the designated ports:
+```bash
+kubectl get svc -n vms
+```

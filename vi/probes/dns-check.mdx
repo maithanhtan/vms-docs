@@ -1,0 +1,63 @@
+---
+title: 'Probe: dns_check'
+description: 'Kiểm tra DNS record resolve đúng'
+---
+
+## Mô tả
+
+Probe `dns_check` thực hiện DNS lookup và kiểm tra kết quả. Hỗ trợ record type A, AAAA, CNAME, MX, TXT. Có thể chỉ định DNS resolver custom và kiểm tra giá trị kỳ vọng.
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"dns_check"` |
+| `host` | `string` | Có | — | Tên miền cần resolve |
+| `recordType` | `string` | Không | `"A"` | Loại record: `A`, `AAAA`, `CNAME`, `MX`, `TXT` |
+| `resolver` | `string` | Không | system resolver | DNS resolver custom (host hoặc host:port). Nếu không có port, mặc định `:53` |
+| `expectedValues` | `string[]` | Không | — | Giá trị DNS bắt buộc có trong kết quả. Nếu thiếu bất kỳ giá trị nào → status `down` |
+
+## Metrics
+
+| Metric | Type | Unit | Mô tả |
+|---|---|---|---|
+| `vms.dns_check.status` | status | — | `up` hoặc `down` |
+| `vms.dns_check.latency_ms` | gauge | ms | Thời gian lookup |
+
+## Ví dụ config
+
+```json
+{
+  "type": "dns_check",
+  "host": "app.verolabs.co",
+  "recordType": "A",
+  "expectedValues": ["10.0.0.10"]
+}
+```
+
+**Dùng custom resolver:**
+
+```json
+{
+  "type": "dns_check",
+  "host": "app.verolabs.co",
+  "recordType": "A",
+  "resolver": "8.8.8.8"
+}
+```
+
+**Kiểm tra MX record:**
+
+```json
+{
+  "type": "dns_check",
+  "host": "verolabs.co",
+  "recordType": "MX",
+  "expectedValues": ["mail.verolabs.co"]
+}
+```
+
+## Lưu ý
+
+- Với CNAME, trailing dot (`.`) trong kết quả được tự động loại bỏ trước khi so sánh với `expectedValues`.
+- Với MX, chỉ so sánh hostname (bỏ trailing dot), không bao gồm priority.

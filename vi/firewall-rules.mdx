@@ -1,0 +1,39 @@
+---
+title: 'Yêu cầu Firewall'
+description: 'Cấu hình luật firewall và port giao tiếp cho hệ thống VMS'
+---
+
+<div style={{ width: '100%', height: 4, marginBottom: 24, borderRadius: 2, background: 'rgba(0,0,0,0.08)' }}>
+  <div style={{ width: '100%', height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--accent-primary) 0%, var(--accent-light) 50%, var(--accent-dark) 100%)' }} />
+</div>
+
+Để đảm bảo hệ thống VMS Master và các VMS Agent giao tiếp ổn định, không bị chặn hoặc ngắt kết nối giữa chừng, đội ngũ hạ tầng/vận hành cần cấu hình luật firewall cho phép các cổng kết nối dưới đây.
+
+## Bảng luật Firewall chi tiết
+
+| Nguồn (Source) | Đích (Destination) | Cổng (Ports) | Mô tả & Mục đích |
+|---|---|---|---|
+| Customer server (Agent) | VMS Server | `31082, 443, 31080, 31081` | API Port để agent gửi metric/log và nhận config từ VMS Server |
+| VMS Server | Internet | `80, 443` | Kết nối ra internet để cài K8s/K3s, pull docker image từ gitlab image repo |
+| Jump/VPN | VMS Server | `31082, 443, 31080, 31081, 22, 16443, 6443` | Kết nối VMS Server để quản trị hệ thống và thực hiện deploy |
+
+<Info>
+Cổng **31082** được cấu hình thay thế cho cổng HTTP 80 mặc định để nâng cao độ bảo mật cho hệ thống.
+</Info>
+
+## Hướng dẫn kiểm tra kết nối (Troubleshoot)
+
+Nếu gặp sự cố mất kết nối hoặc agent báo lỗi handshake/timeout, hãy kiểm tra cổng dịch vụ theo các bước sau:
+
+### 1. Kiểm tra từ phía Agent (Customer Server)
+Chạy lệnh kiểm tra kết nối telnet hoặc curl tới endpoint của Ingress:
+```bash
+# Kiểm tra khả năng kết nối tới port Ingress HTTPS
+curl -k https://ingest.vms.verolabs.co/healthz
+```
+
+### 2. Kiểm tra từ phía Server chạy Master
+Đảm bảo các cổng NodePort hoặc Ingress Controller đang lắng nghe đúng cổng đã mở:
+```bash
+kubectl get svc -n vms
+```

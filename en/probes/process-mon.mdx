@@ -1,0 +1,58 @@
+---
+title: 'Probe: process_mon'
+description: 'Monitor running processes with count, CPU/memory, and per-process detail'
+---
+
+## Description
+
+The `process_mon` probe monitors running processes on the host, counting matches and optionally collecting aggregate or per-process CPU/memory detail. Matching is by process name (glob, case-insensitive) with an optional executable path filter.
+
+Requires the `ProcessAdapter` platform adapter.
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"process_mon"` |
+| `processName` | `string` | Yes | — | Process name glob pattern. Case-insensitive. Supports `*`, `?`, `[` |
+| `executablePath` | `string` | No | — | Full executable path to narrow match (ANDed with processName). Exact match |
+| `minCount` | `int` | No | `1` | Minimum process count. count < minCount → `down` |
+| `maxCount` | `int` | No | — | Maximum process count. count > maxCount → `warning` |
+| `collectCpuMemory` | `bool` | No | `false` | Collect aggregate CPU% and memory bytes across all matched processes |
+| `collectPerProcess` | `bool` | No | `false` | Collect per-process detail (CPU, RSS, VMS, threads, FDs, disk I/O, uptime) |
+| `collectConnections` | `bool` | No | = `collectPerProcess` | Collect open connection count per matched PID. Needs `ConnAdapter` |
+| `maxProcesses` | `int` | No | `20` | Cap on per-process detail emission (busiest-by-CPU kept) |
+
+## Metrics
+
+| Metric | Type | Unit | Labels | Condition |
+|---|---|---|---|---|
+| `vms.process_mon.running` | status | — | — | Always |
+| `vms.process_mon.count` | gauge | — | — | Always |
+| `vms.process_mon.cpu_percent` | gauge | percent | — | `collectCpuMemory = true` |
+| `vms.process_mon.memory_bytes` | gauge | bytes | — | `collectCpuMemory = true` |
+| `vms.process.cpu_percent` | gauge | percent | `pid`, `name`, `user` | `collectPerProcess = true` |
+| `vms.process.memory_rss_bytes` | gauge | bytes | `pid`, `name`, `user` | `collectPerProcess = true` |
+| `vms.process.memory_vms_bytes` | gauge | bytes | `pid`, `name`, `user` | `collectPerProcess = true` |
+| `vms.process.num_threads` | gauge | — | `pid`, `name`, `user` | `collectPerProcess = true` |
+| `vms.process.num_fds` | gauge | — | `pid`, `name`, `user` | `collectPerProcess = true` |
+| `vms.process.disk_read_bytes` | counter | bytes | `pid`, `name`, `user` | `collectPerProcess = true` |
+| `vms.process.disk_write_bytes` | counter | bytes | `pid`, `name`, `user` | `collectPerProcess = true` |
+| `vms.process.uptime_seconds` | gauge | seconds | `pid`, `name`, `user` | `collectPerProcess = true` |
+| `vms.process.num_connections` | gauge | — | `pid`, `name`, `user` | `collectConnections = true` |
+
+## Example config
+
+```json
+{
+  "type": "process_mon",
+  "processName": "nginx",
+  "minCount": 1,
+  "collectCpuMemory": true
+}
+```
+
+## Notes
+
+- The legacy `commandLinePattern` regex selector has been **removed** — use `processName` glob instead.
+- When `collectPerProcess = true` and matches exceed `maxProcesses`, only the busiest processes (highest CPU%) are kept.

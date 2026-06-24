@@ -1,0 +1,64 @@
+---
+title: 'Probe: k8s_mon'
+description: 'Monitor Kubernetes workloads, pods, nodes, and services'
+---
+
+## Description
+
+The `k8s_mon` probe monitors Kubernetes resources: Deployment, DaemonSet, StatefulSet (replicas), Pod (readiness, restarts), Node (readiness), and Service (existence). Optional CPU/memory via metrics-server.
+
+Build tag `vms_heavy`. Uses in-cluster config + ServiceAccount. Requires RBAC get/list on the target resource.
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"k8s_mon"` |
+| `namespace` | `string` | No | `"default"` | Kubernetes namespace |
+| `workloadKind` | `string` | Yes | — | Resource kind: `"Node"`, `"Pod"`, `"Deployment"`, `"DaemonSet"`, `"StatefulSet"`, `"Service"` |
+| `workloadName` | `string` | * | — | Specific resource name. One of `workloadName` or `labelSelector` required |
+| `labelSelector` | `string` | * | — | Label selector (e.g. `"app=core-api"`) |
+| `collectStats` | `bool` | No | `false` | Collect CPU/memory per pod via metrics-server |
+
+## Metrics
+
+### Deployment / DaemonSet / StatefulSet
+
+| Metric | Type | Labels |
+|---|---|---|
+| `vms.k8s_mon.status` | status | `kind`, `namespace`, `workload` |
+| `vms.k8s_mon.workload.available` | gauge | `kind`, `namespace`, `workload` |
+| `vms.k8s_mon.workload.desired` | gauge | `kind`, `namespace`, `workload` |
+
+### Pod
+
+| Metric | Type | Labels |
+|---|---|---|
+| `vms.k8s_mon.pod.ready` | gauge | `kind`, `namespace`, `pod` |
+| `vms.k8s_mon.restart_count` | counter | `kind`, `namespace`, `pod` |
+
+### Stats (collectStats = true)
+
+| Metric | Type | Unit | Labels |
+|---|---|---|---|
+| `vms.k8s_mon.cpu_millicores` | gauge | millicores | `kind`, `namespace`, `pod` |
+| `vms.k8s_mon.memory_bytes` | gauge | bytes | `kind`, `namespace`, `pod` |
+
+## Example config
+
+```json
+{
+  "type": "k8s_mon",
+  "namespace": "core",
+  "workloadKind": "Deployment",
+  "workloadName": "core-api",
+  "collectStats": true
+}
+```
+
+## Notes
+
+- Max **100 pods/nodes** emitted per run.
+- Missing RBAC → `unknown` status with `vms.agent.permission_missing{capability=kubernetes_rbac}`.
+- `collectStats` requires metrics-server installed. If absent, stats are silently skipped.
+- Build tag `vms_heavy` — not in default agent package.

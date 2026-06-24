@@ -1,0 +1,62 @@
+---
+title: 'Probe: container_mon'
+description: 'Giám sát Docker / Docker Swarm container'
+---
+
+## Mô tả
+
+Probe `container_mon` giám sát Docker và Docker Swarm container qua Docker Engine API (HTTP trên unix socket). Theo dõi trạng thái running, restart count, và tùy chọn CPU/memory stats.
+
+Build tag `vms_heavy` — không có trong package agent mặc định.
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"container_mon"` |
+| `runtime` | `string` | Có | — | `"docker"` hoặc `"docker_swarm"`. (`"containerd"` không được hỗ trợ trong build HTTP-socket) |
+| `runtimeEndpoint` | `string` | Không | `/var/run/docker.sock` | Đường dẫn Docker socket hoặc endpoint |
+| `containerNamePattern` | `string` | Không | — | Regex match tên container. Để trống = match tất cả |
+| `serviceName` | `string` | Không | — | Docker Swarm service name (match label `com.docker.swarm.service.name`) |
+| `collectStats` | `bool` | Không | `false` | Thu thập CPU% và memory cho container đang running |
+
+## Metrics
+
+| Metric | Type | Unit | Labels | Mô tả |
+|---|---|---|---|---|
+| `vms.container_mon.status` | status | — | `container` | `up` hoặc `down` per container |
+| `vms.container_mon.restart_count` | counter | — | `container` | Số lần restart (từ Docker inspect) |
+| `vms.container_mon.cpu_percent` | gauge | percent | `container` | CPU usage (`collectStats = true`, container running) |
+| `vms.container_mon.memory_bytes` | gauge | bytes | `container` | Memory usage |
+| `vms.container_mon.memory_percent` | gauge | percent | `container` | Memory usage % (khi có limit) |
+| `vms.agent.permission_missing` | gauge | — | `capability=docker.sock` | Docker socket unreachable |
+
+## Ví dụ config
+
+```json
+{
+  "type": "container_mon",
+  "runtime": "docker",
+  "containerNamePattern": "core-.*",
+  "collectStats": true
+}
+```
+
+**Docker Swarm service:**
+
+```json
+{
+  "type": "container_mon",
+  "runtime": "docker_swarm",
+  "serviceName": "core-api",
+  "collectStats": true
+}
+```
+
+## Lưu ý
+
+- Tối đa **50 container** match per run — giới hạn request và cardinality.
+- Docker socket không reachable → status `unknown`, emit `vms.agent.permission_missing{capability=docker.sock}`.
+- Không match container nào → status `down`, severity `critical`.
+- `collectStats` chỉ thu thập cho container đang running. Stats lấy từ Docker one-shot stats API (`stream=false`).
+- CPU% tính từ 2 cumulative sample (current vs precpu_stats) trong response.

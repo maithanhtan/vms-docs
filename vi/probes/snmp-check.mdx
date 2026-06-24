@@ -1,0 +1,83 @@
+---
+title: 'Probe: snmp_check'
+description: 'Polling SNMP OID từ thiết bị mạng'
+---
+
+## Mô tả
+
+Probe `snmp_check` poll giá trị OID từ thiết bị hỗ trợ SNMP. Hỗ trợ SNMPv2c (community string) và SNMPv3 (username + auth/privacy). Credential được resolve qua secret reference — không bao giờ log.
+
+Build tag `vms_heavy`.
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"snmp_check"` |
+| `host` | `string` | Có | — | SNMP target host/IP |
+| `port` | `int` | Không | `161` | SNMP port |
+| `version` | `string` | Có | — | `"v2c"` hoặc `"v3"` |
+| `communitySecretRef` | `string` | Không | `"public"` (v2c) | Secret ref cho community string (v2c). Để trống = `"public"` |
+| `usernameSecretRef` | `string` | v3: Có | — | Secret ref cho SNMPv3 username |
+| `authProtocol` | `string` | Không | — | Auth protocol: `"md5"`, `"sha"`, `"sha224"`, `"sha256"`, `"sha384"`, `"sha512"` |
+| `authPasswordSecretRef` | `string` | Khi có authProtocol | — | Secret ref cho auth passphrase |
+| `privacyProtocol` | `string` | Không | — | Privacy protocol: `"des"`, `"aes"`, `"aes192"`, `"aes256"` |
+| `privPasswordSecretRef` | `string` | Khi có privacyProtocol | — | Secret ref cho privacy passphrase |
+| `oids` | `string[]` | Có | — | Danh sách OID cần GET. Ít nhất 1 OID |
+
+## Secret resolution
+
+Secret ref được resolve qua environment variable tại thời điểm khởi tạo probe. Nếu ref được cấu hình nhưng env var tương ứng không set → probe bị skip (lỗi khi khởi tạo) thay vì chạy với credential rỗng.
+
+## SNMPv3 security levels
+
+| authProtocol | privacyProtocol | Security level |
+|---|---|---|
+| (trống) | (trống) | NoAuthNoPriv |
+| có giá trị | (trống) | AuthNoPriv |
+| có giá trị | có giá trị | AuthPriv |
+
+## Metrics
+
+| Metric | Type | Labels | Mô tả |
+|---|---|---|---|
+| `vms.snmp.status` | status | — | `up` hoặc `down` |
+| `vms.snmp.value` | gauge | `oid` | Giá trị numeric của OID. OID non-numeric bị skip |
+
+## Ví dụ config
+
+**SNMPv2c:**
+
+```json
+{
+  "type": "snmp_check",
+  "host": "10.0.0.20",
+  "port": 161,
+  "version": "v2c",
+  "communitySecretRef": "SNMP_COMMUNITY_CORE",
+  "oids": ["1.3.6.1.2.1.1.3.0", "1.3.6.1.2.1.2.2.1.10.1"]
+}
+```
+
+**SNMPv3 AuthPriv:**
+
+```json
+{
+  "type": "snmp_check",
+  "host": "10.0.0.30",
+  "version": "v3",
+  "usernameSecretRef": "SNMP_V3_USER",
+  "authProtocol": "sha256",
+  "authPasswordSecretRef": "SNMP_V3_AUTH_PASS",
+  "privacyProtocol": "aes256",
+  "privPasswordSecretRef": "SNMP_V3_PRIV_PASS",
+  "oids": ["1.3.6.1.2.1.1.3.0"]
+}
+```
+
+## Lưu ý
+
+- Connect fail hoặc timeout → status `down`, severity `warning`. Không phải lỗi agent.
+- Chỉ giá trị **numeric** được emit thành metric gauge. OID trả octet string, IP address, v.v. bị skip.
+- Timeout mặc định 5 giây, bị clamp bởi probe timeout từ scheduler nếu nhỏ hơn.
+- Build tag `vms_heavy` — không có trong package agent mặc định.

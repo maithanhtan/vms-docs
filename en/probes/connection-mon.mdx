@@ -1,0 +1,54 @@
+---
+title: 'Probe: connection_mon'
+description: 'Monitor TCP connection between a process and a service endpoint (bidirectional)'
+---
+
+## Description
+
+The `connection_mon` probe checks whether a specific process currently holds an ESTABLISHED TCP connection to a service endpoint. Designed for "trace between two servers" — verifying connectivity between systems.
+
+**Bidirectional matching**: The same config can be deployed on **both ends**:
+- **Forward**: this host is the source (local = source, remote = dest service)
+- **Reverse**: this host is the dest (local = dest service, remote = source)
+
+Requires both `ProcessAdapter` and `ConnAdapter`.
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"connection_mon"` |
+| `name` | `string` | Yes | — | Connection link identifier |
+| `processName` | `string` | Yes | — | Process name glob (case-insensitive, same as `process_mon`) |
+| `executablePath` | `string` | No | — | Executable path to narrow match (ANDed) |
+| `destServiceIp` | `string` | Yes | — | Destination service IP (well-known end) |
+| `destServicePort` | `int` | Yes | — | Destination service port (1–65535) |
+| `sourceServiceIp` | `string` | No | — | Source IP (optional filter) |
+| `sourceServicePort` | `int` | No | — | Source port (usually ephemeral, left unset) |
+| `protocol` | `string` | No | `"tcp"` | Only `"tcp"` supported |
+
+## Metrics
+
+| Metric | Type | Labels | Description |
+|---|---|---|---|
+| `vms.connection_mon.status` | status | `name`, `dest_ip`, `dest_port`, `proto`, `process_name`*, `direction`* | `up` or `down` |
+| `vms.connection_mon.up` | gauge | (same) | `1` = ESTABLISHED connection found, `0` = none |
+| `vms.agent.permission_missing` | gauge | `capability=CAP_SYS_PTRACE` | When agent cannot attribute sockets to PIDs |
+
+## Example config
+
+```json
+{
+  "type": "connection_mon",
+  "name": "app-to-postgres",
+  "processName": "java",
+  "destServiceIp": "10.0.1.50",
+  "destServicePort": 5432
+}
+```
+
+## Notes
+
+- Only TCP `ESTABLISHED` state is considered "normal/healthy".
+- Same config deployed on both ends: host A sees `direction=forward`, host B sees `direction=reverse`.
+- Without `CAP_SYS_PTRACE`, a process owned by another user shows 0 connections (false negative) with `vms.agent.permission_missing` emitted.

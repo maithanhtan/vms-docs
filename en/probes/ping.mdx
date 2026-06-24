@@ -1,0 +1,43 @@
+---
+title: 'Probe: ping'
+description: 'Check host reachability via ICMP or TCP fallback'
+---
+
+## Description
+
+The `ping` probe checks host reachability using ICMP echo (unprivileged datagram socket). If ICMP is unavailable (missing `CAP_NET_RAW` or `net.ipv4.ping_group_range` doesn't cover the agent's user), it automatically falls back to TCP connect.
+
+## Config fields
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `string` | Yes | — | Must be `"ping"` |
+| `host` | `string` | Yes | — | Host or IP to ping |
+| `count` | `int` | No | `3` | Number of pings (1–10). Values > 10 are clamped |
+| `method` | `string` | No | `""` (auto) | `"icmp"`: ICMP only. `"tcp_fallback"`: TCP only. Empty: try ICMP first, fall back to TCP |
+| `fallbackPort` | `int` | No | `443` | TCP port for fallback (1–65535) |
+
+## Metrics
+
+| Metric | Type | Unit | Labels | Description |
+|---|---|---|---|---|
+| `vms.ping.status` | status | — | `method` | `up` or `down` |
+| `vms.ping.latency_ms` | gauge | ms | `method` | Average latency |
+| `vms.agent.permission_missing` | gauge | — | `capability=CAP_NET_RAW` | Emitted when ICMP is blocked and probe uses TCP fallback |
+
+## Example config
+
+```json
+{
+  "type": "ping",
+  "host": "10.0.0.10",
+  "count": 3,
+  "fallbackPort": 443
+}
+```
+
+## Notes
+
+- ICMP unavailability is detected **once at construction**, not re-probed every run.
+- When ICMP is blocked, the probe emits `vms.agent.permission_missing{capability=CAP_NET_RAW}` every run so the gap is visible on dashboards.
+- To enable native ICMP on Linux: grant `CAP_NET_RAW` to the binary or expand `net.ipv4.ping_group_range`.

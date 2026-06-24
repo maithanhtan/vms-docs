@@ -1,0 +1,88 @@
+---
+title: 'Troubleshooting'
+description: 'Troubleshoot VMS operations issues'
+---
+
+<div style={{ width: '100%', height: 4, marginBottom: 24, borderRadius: 2, background: 'rgba(0,0,0,0.08)' }}>
+  <div style={{ width: '100%', height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--accent-primary) 0%, var(--accent-light) 50%, var(--accent-dark) 100%)' }} />
+</div>
+
+Use this page for VMS master, VMS agent collector, dashboard, alerting, and synthetic/readiness issues. The goal is to triage quickly by layer: Infrastructure -> Service -> User -> Business Flow, then route to the right owner.
+
+## Fast triage rules
+
+<Steps>
+  <Step title="Identify impact scope">
+    Check whether the issue affects one host/service, one collector, one dashboard, or the whole VMS master.
+  </Step>
+  <Step title="Check freshness">
+    Compare last metric time, last heartbeat, alert timestamp, and active maintenance windows.
+  </Step>
+  <Step title="Locate the layer">
+    Classify the issue as Infrastructure, Service, User check, or Business Flow to avoid routing it to the wrong owner.
+  </Step>
+  <Step title="Verify inventory">
+    Check `system`, `environment`, `service`, `owner`, `criticality`, and `scope` tags before declaring missing data.
+  </Step>
+  <Step title="Escalate with evidence">
+    Include collector id, host, service, dashboard, alert id, timestamp, and related logs when escalating.
+  </Step>
+</Steps>
+
+## Collector does not send data
+
+| Symptom | Common cause | Fix |
+|---|---|---|
+| Master sees no heartbeat | Collector is stopped, token is wrong, ingest URL is wrong | Check service status, token file, DNS, TLS, and ingest URL |
+| Heartbeat exists but metrics are empty | Host metric module is disabled or lacks read permission | Check `[host_metrics]`, collector user, and permissions |
+| Data appears intermittently | Unstable network, firewall idle timeout, retry too low | Check egress to master, increase retry/backoff and keepalive |
+| Only one service check is missing | Wrong process name, port, or health path | Compare inventory with the real process and test port from collector |
+| Duplicate collector | Two collectors use the same id or hostname tag | Assign a unique id, fix tags, and remove duplicate inventory entry |
+
+## Dashboard is stale or missing data
+
+| Symptom | Common cause | Fix |
+|---|---|---|
+| Dashboard is not updating | Slow ingest queue, slow time-series store, wrong query range | Check master health, ingest queue, time range, and collector timestamp |
+| One host group is missing | Missing tag or wrong environment/system tag | Standardize tags and refresh inventory |
+| KPI/SLA is wrong | Service lacks criticality or owner metadata | Add metadata and rerun aggregation |
+| Topology edge is missing | Connection check is not defined or dependency was renamed | Update connection inventory and remap source/target |
+
+## Alert noise
+
+| Symptom | Common cause | Fix |
+|---|---|---|
+| Alert flaps repeatedly | Threshold too tight, retry too low, timeout too short | Increase retry, use debounce, tune threshold from baseline |
+| Alert fires during maintenance | Maintenance window missing or tag does not match | Create maintenance window by `system/environment/service` |
+| Alert goes to wrong owner | Owner tag is wrong or routing rule is too broad | Fix owner tag and split rules by system/service |
+| Too many Low alerts | Alerts are not grouped or suppressed | Group alerts by service and suppress secondary symptoms |
+
+## Service health check fails
+
+| Symptom | Common cause | Fix |
+|---|---|---|
+| TCP fails | Service down, port changed, firewall blocked | Check process, listen port, and firewall from collector node |
+| HTTP health fails | Wrong health path, unexpected status code, TLS problem | Check URL, method, expected status, certificate, and proxy |
+| Latency increases | Slow network, dependency timeout, overloaded host | Compare network, CPU, memory, disk IO, and downstream checks |
+| Process check fails | Process name changed after deployment | Update process matcher for the new release |
+
+## Pre-market readiness fails
+
+| Step | Check |
+|---|---|
+| 1 | Identify failing step: host, service, dependency, synthetic, or report delivery |
+| 2 | Check whether maintenance or deployment happened before 08:30 |
+| 3 | Compare Overall dashboard with the related system dashboard |
+| 4 | Rerun the check manually from collector or probe node when needed |
+| 5 | Send a report with pass/fail state, owner, and next action |
+
+## Information to include for support
+
+| Information | Example |
+|---|---|
+| Collector | Collector id, hostname, version, environment |
+| Target | Affected system/service/dependency |
+| Timestamp | Start time and last metric time |
+| Dashboard | Dashboard name, panel, query range |
+| Alert | Alert id, severity, owner, routing channel |
+| Log | Collector log, master ingest log, or synthetic run log |

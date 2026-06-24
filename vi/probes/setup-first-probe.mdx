@@ -1,0 +1,75 @@
+---
+title: 'Cài đặt Probe đầu tiên'
+description: 'Hướng dẫn cách cấu hình và quản lý probe giám sát trên VMS Agent'
+---
+
+## Tổng quan cấu hình Probe
+
+Sau khi cài đặt VMS Agent Collector thành công, bạn có thể bắt đầu cấu hình các Probe (bộ đo) để giám sát tài nguyên host, network port, container, logs, hoặc kiểm tra endpoint dịch vụ.
+
+Giao diện quản lý của VMS Dashboard cho phép bạn theo dõi danh sách Agent đang hoạt động, xem chi tiết tình trạng sức khỏe của từng Agent, cũng như quản lý cấu hình các probe tương ứng:
+
+![VMS Agent & Probe Management Dashboard](/images/agent_setup_dashboard.png)
+
+## Các bước cấu hình một Probe mới
+
+Để thêm hoặc cập nhật một probe giám sát, bạn có thể thực hiện thông qua giao diện VMS Dashboard hoặc chỉnh sửa trực tiếp file cấu hình của Agent.
+
+<Steps>
+  <Step title="Xác định mục tiêu giám sát (Target)">
+    Xác định host, service hoặc endpoint nào cần giám sát. Ví dụ: Cần kiểm tra HTTP endpoint của web service tại `https://api.vero.io/health`.
+  </Step>
+  <Step title="Chọn loại Probe phù hợp">
+    Dựa vào mục tiêu để chọn loại probe thích hợp trong danh sách:
+    - Sử dụng `host_resource` để đo CPU, RAM, Disk.
+    - Sử dụng `http_check` để giám sát API endpoint.
+    - Sử dụng `check_port` để kiểm tra cổng kết nối (như SSH port 22, database port).
+  </Step>
+  <Step title="Khai báo cấu hình (JSON / YAML)">
+    Mỗi probe được khai báo với các thuộc tính cơ bản như mã nhận diện `code`, tên `name`, chu kỳ chạy `intervalSeconds`, và khối `config` riêng của probe đó.
+    
+    Ví dụ cấu hình probe giám sát HTTP Check:
+    ```json
+    {
+      "code": "api-health-check",
+      "name": "HTTP check API Vero",
+      "type": "http_check",
+      "intervalSeconds": 60,
+      "timeoutMs": 5000,
+      "enabled": true,
+      "config": {
+        "url": "https://api.vero.io/health",
+        "method": "GET",
+        "expectedStatus": 200
+      }
+    }
+    ```
+  </Step>
+  <Step title="Áp dụng và tải lại cấu hình">
+    - Nếu cấu hình qua VMS Dashboard, nhấn **Save / Apply** để gửi cấu hình xuống Agent.
+    - Nếu cấu hình bằng file, lưu file cấu hình của Agent.
+    - Agent sẽ tự động cập nhật cấu hình mới sau chu kỳ đồng bộ (mặc định được cấu hình bởi `VMS_CONFIG_REFRESH_SECONDS`, thông thường từ 30s đến 60s) mà không cần restart service.
+  </Step>
+</Steps>
+
+## Cách kiểm tra Probe hoạt động thành công hay thất bại
+
+### 1. Kiểm tra trạng thái trên VMS Dashboard
+- **Trạng thái Thành công (Success / Green):** Probe trả về kết quả hợp lệ, các assertion (nếu có) đều pass. Trên dashboard hiển thị dot xanh lá cây (`Green`).
+- **Trạng thái Thất bại (Fail / Red):** Probe không kết nối được hoặc kết quả assertion bị fail (ví dụ: HTTP status trả về 500 thay vì 200). Hệ thống sẽ chuyển trạng thái sang `Red` hoặc cảnh báo `Critical` và gửi cảnh báo (Alert) đến kênh đã cấu hình.
+
+### 2. Kiểm tra log trực tiếp trên Host chạy Agent
+Bạn có thể xem journal/log của agent để verify hoạt động gửi nhận cấu hình và kết quả chạy probe:
+
+```bash
+# Xem log thời gian thực của VMS Agent
+sudo journalctl -u vms-monitor-agent -f --no-pager
+```
+
+Khi probe chạy, log sẽ in thông tin tương tự như sau:
+```text
+INFO[0030] [Config] Fetching latest probes configuration...
+INFO[0031] [Config] Found 2 active probes (host_resource, http_check)
+INFO[0060] [Probe:api-health-check] HTTP GET https://api.vero.io/health succeeded, status code 200
+INFO[0060] [Ingress] Reporting 1 probe results to vms-ingress...
+```

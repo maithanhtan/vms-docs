@@ -1,0 +1,69 @@
+---
+title: 'Probe: custom_check'
+description: 'Chạy executable đã phê duyệt và kiểm tra kết quả'
+---
+
+## Mô tả
+
+Probe `custom_check` chạy một executable đã phê duyệt và đánh giá kết quả dựa trên exit code, stdout content, hoặc JSON output. Đây là probe duy nhất sinh process mới — được compile riêng bằng build tag `vms_custom_check`.
+
+<Warning>
+**Yêu cầu bảo mật:**
+- Executable **phải là absolute path** (không dùng PATH lookup → không bị PATH hijack).
+- Probe **từ chối chạy khi agent là root (uid 0)** hoặc Windows LocalSystem.
+- Không dùng shell — binary được gọi trực tiếp với argv.
+- Hard timeout = probe timeout từ scheduler.
+- Stdout capped 1 MiB.
+</Warning>
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"custom_check"` |
+| `executable` | `string` | Có | — | Absolute path tới executable. **Phải là absolute path** |
+| `args` | `string[]` | Không | — | Danh sách argument truyền cho executable |
+| `expectedExitCode` | `int` | Không | `0` | Exit code kỳ vọng. Khác → status `down` |
+| `expectedStdoutContains` | `string` | Không | — | Chuỗi stdout cần chứa. Không tìm thấy → status `down` |
+| `parseJsonOutput` | `bool` | Không | `false` | Parse stdout như JSON object. Các field numeric/boolean được emit thành gauge metric |
+
+## Metrics
+
+| Metric | Type | Unit | Labels | Mô tả |
+|---|---|---|---|---|
+| `vms.custom_check.status` | status | — | — | `up` hoặc `down` |
+| `vms.custom_check.value` | gauge | — | `key` | Emit khi `parseJsonOutput = true` — mỗi field numeric/boolean trong JSON stdout |
+
+Check result value là exit code.
+
+## Ví dụ config
+
+```json
+{
+  "type": "custom_check",
+  "executable": "/opt/vms/checks/check-core.sh",
+  "args": ["--quick"],
+  "expectedExitCode": 0
+}
+```
+
+**Parse JSON output:**
+
+```json
+{
+  "type": "custom_check",
+  "executable": "/opt/vms/checks/db-health.sh",
+  "parseJsonOutput": true
+}
+```
+
+Nếu script trả `{"connections": 42, "healthy": true}`, probe emit:
+- `vms.custom_check.value{key="connections"} = 42`
+- `vms.custom_check.value{key="healthy"} = 1`
+
+## Lưu ý
+
+- Build tag `vms_custom_check` — package agent mặc định **không bao gồm** probe này. Cần dùng build có tag riêng.
+- Nếu agent chạy root → probe trả `down` với message "refuses to run as root". Tương tự Windows LocalSystem.
+- Timeout do scheduler quản lý — process bị kill khi timeout, kèm 1 giây chờ drain I/O.
+- JSON parse chỉ hỗ trợ top-level object với field numeric (`float64`) và boolean. String và nested object bị bỏ qua.

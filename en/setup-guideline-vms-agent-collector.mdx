@@ -1,0 +1,214 @@
+---
+title: 'Setup guideline VMS agent collector'
+description: 'Deploy agents by script and configure probe monitoring'
+---
+
+<div style={{ width: '100%', height: 4, marginBottom: 24, borderRadius: 2, background: 'rgba(0,0,0,0.08)' }}>
+  <div style={{ width: '75%', height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--accent-primary) 0%, var(--accent-light) 50%, var(--accent-dark) 100%)' }} />
+</div>
+
+The VMS agent collector (Vero Metric Collector) is installed at the customer host or site to collect metrics, checks, and logs, then securely push them to the central VMS Master over HTTPS.
+
+<Info>
+**Cross-Platform Support**: VMS Agent natively runs on **Linux** as a systemd service and on **Windows** as a Windows Service, as well as containerized options (Docker / Kubernetes).
+</Info>
+
+## Agent Deployment Overview
+
+Below is the connection and reporting structure of the VMS Agent deployed on both Linux and Windows environments:
+
+![VMS Agent Deployment](/images/vms_agent_deployment.png)
+
+---
+
+## Prerequisites (Agent)
+
+| Prerequisite | Description |
+|---|---|
+| OS | **Linux** (systemd) or **Windows** (Windows Service) |
+| Connection | Outbound HTTPS connectivity to the VMS Master `INGRESS_URL`. No inbound ports are required |
+| API Key | A valid agent auth key generated from VMS Master |
+| TLS Mode | Trusted SSL Certificate or path to the custom CA file |
+
+---
+
+## Deployment Flow on Linux (systemd)
+
+These installation steps follow the **Step (Action) - Check (Verification) - Result (Expected Outcome)** structure:
+
+<Steps>
+  <Step title="1. Download and Install Agent Binary">
+    - **Step**: Download the installation script from your customer domain to pull down the binary:
+      ```bash
+      curl -fsSL https://CUSTOMER_DOMAIN/agent/install/linux.sh | sudo bash -s -- --ingress-url https://ingest.CUSTOMER_DOMAIN --api-key YOUR_API_KEY
+      ```
+    - **Check**: Verify that the binary runs and displays version information:
+      ```bash
+      vms-monitor-agent version
+      ```
+    - **Result**: Version, build date, and git commit of the agent are successfully printed.
+  </Step>
+
+  <Step title="2. Configure Environment and TLS certs">
+    - **Step**: Configure `/etc/vms-monitor-agent/agent.env` with variables and specify the CA cert path if self-signed:
+      ```bash
+      VMS_METRICS_INGRESS_URL="https://ingest.CUSTOMER_DOMAIN"
+      VMS_METRICS_INGRESS_API_KEY="YOUR_API_KEY"
+      VMS_TLS_CA_FILE="/etc/vms-monitor-agent/ca.crt"
+      ```
+    - **Check**: Read the file to ensure variables are set:
+      ```bash
+      cat /etc/vms-monitor-agent/agent.env
+      ```
+    - **Result**: The environment file is generated containing all required connection keys.
+  </Step>
+
+  <Step title="3. Launch systemd Service">
+    - **Step**: Reload systemd configurations, enable and start the agent daemon:
+      ```bash
+      sudo systemctl daemon-reload
+      sudo systemctl enable --now vms-monitor-agent
+      ```
+    - **Check**: Query the systemd service status:
+      ```bash
+      sudo systemctl status vms-monitor-agent --no-pager
+      ```
+    - **Result**: The service status displays `active (running)`.
+  </Step>
+
+  <Step title="4. Verify Connection Logs">
+    - **Step**: Monitor live logs to confirm successful metric ingest:
+      ```bash
+      sudo journalctl -u vms-monitor-agent -n 50 -f --no-pager
+      ```
+    - **Check**: Inspect logs for transmission status indicators.
+    - **Result**: Logs report `INFO [Ingress] Reporting probe results to vms-ingress...` without auth or handshake errors.
+  </Step>
+</Steps>
+
+---
+
+## Deployment Flow on Windows (Windows Service)
+
+Windows installation steps structured as **Step (Action) - Check (Verification) - Result (Expected Outcome)**:
+
+<Steps>
+  <Step title="1. Download Installer Script">
+    - **Step**: Open an elevated PowerShell session (Admin) and download the install utility script:
+      ```powershell
+      iwr https://CUSTOMER_DOMAIN/agent/install/windows.ps1 -OutFile install.ps1
+      ```
+    - **Check**: Test that the script file was successfully saved:
+      ```powershell
+      Test-Path .\install.ps1
+      ```
+    - **Result**: Output evaluates to `True`.
+  </Step>
+
+  <Step title="2. Execute Installation Script">
+    - **Step**: Run the helper script specifying the ingest URL and your key:
+      ```powershell
+      PowerShell -ExecutionPolicy Bypass -File .\install.ps1 -IngressUrl "https://ingest.CUSTOMER_DOMAIN" -ApiKey "YOUR_API_KEY"
+      ```
+    - **Check**: Verify the installation target contains the executable:
+      ```powershell
+      .\vms-monitor-agent.exe version
+      ```
+    - **Result**: Executable executes and prints version info.
+  </Step>
+
+  <Step title="3. Start Windows Service">
+    - **Step**: Start the service via Service Controller:
+      ```powershell
+      Start-Service -Name "vms-monitor-agent"
+      ```
+    - **Check**: Verify the service status:
+      ```powershell
+      Get-Service -Name "vms-monitor-agent"
+      ```
+    - **Result**: The status returns `Running`.
+  </Step>
+
+  <Step title="4. Verify via Event Viewer Logs">
+    - **Step**: Retrieve the latest system logs created by the agent source:
+      ```powershell
+      Get-EventLog -LogName Application -Source vms-monitor-agent -Newest 10
+      ```
+    - **Check**: Read messages to verify heartbeat status.
+    - **Result**: Event log contains startup messages indicating successful authentication and metric delivery.
+  </Step>
+</Steps>
+
+---
+
+## Generic Probe Configuration Structure
+
+All monitoring configs are structured into a wrapper block containing metadata and a custom `config` block.
+
+```json
+{
+  "code": "core-host-resource",
+  "name": "Core host resource",
+  "type": "host_resource",
+  "intervalSeconds": 30,
+  "timeoutMs": 5000,
+  "retryCount": 1,
+  "enabled": true,
+  "targetId": "core-host-01",
+  "labels": { "system": "Core", "owner": "core-ops" },
+  "config": { "collectCpu": true, "collectMemory": true }
+}
+```
+
+| Field | Required | Meaning |
+|---|---|---|
+| `code` | Yes | Unique probe identifier |
+| `name` | No | Display name on dashboards |
+| `type` | Yes | Probe type, for example `host_resource`, `http_check` |
+| `intervalSeconds` | No | Probe run interval |
+| `timeoutMs` | No | Per-run timeout |
+| `retryCount` | No | Retry count when a check fails |
+| `enabled` | No | Enable/disable this probe |
+| `targetId` | No | Related host/service ID |
+| `labels` | No | Extra labels such as system, env, owner |
+| `config` | Yes | Probe-specific config |
+
+---
+
+## Supported Probes
+
+See individual probe pages in the left menu for detailed config. Summary:
+
+| Probe type | Group | Description |
+|---|---|---|
+| `host_resource` | Core | Collect CPU, memory, disk, disk IO, network |
+| `check_port` | Core | Check TCP port open/closed |
+| `ping` | Core | Check host reachability (ICMP / TCP fallback) |
+| `http_check` | Core | Check HTTP/HTTPS endpoint |
+| `dns_check` | Core | Check DNS record resolution |
+| `tls_cert` | Core | Monitor TLS certificate expiry |
+| `process_mon` | Core | Monitor running processes |
+| `service_mon` | Core | Check systemd / Windows service state |
+| `connection` | Core | Check connection count by filter |
+| `connection_mon` | Core | Monitor TCP connection between process and service (bidirectional) |
+| `file_check` | Core | Check file existence, size, age |
+| `log_mon` | Core | Count log lines matching pattern |
+| `log_get` | Core | Ship log lines with redaction |
+| `auto_discovery` | Core | Discover connection inventory and topology |
+| `custom_check` | Opt-in (`vms_custom_check`) | Run approved executable |
+| `container_mon` | Heavy (`vms_heavy`) | Monitor Docker / Swarm containers |
+| `k8s_mon` | Heavy (`vms_heavy`) | Monitor Kubernetes workloads/pods/nodes |
+| `snmp_check` | Heavy (`vms_heavy`) | Poll SNMP OIDs |
+| `wmi_perf` | Heavy (`vms_heavy`) | WMI queries on Windows |
+
+---
+
+## Troubleshooting
+
+| Symptoms | Likely Cause | Resolution |
+|---|---|---|
+| Agent fails to start immediately | Missing ingest URL or API key | Check environment variables or configuration file |
+| `401` Authentication blocked | Invalid or rotated API key | Fetch a new key from VMS Master and restart agent |
+| `x509 unknown authority` | Ingress using self-signed cert | Set `VMS_TLS_CA_FILE` environment variable to CA certificate |
+| Ping transitions to TCP fallback | Lack of ICMP socket privileges | Assign `CAP_NET_RAW` or allow fallback |
+| Connection/Process logs missing names | Lack of system process reading access | Execute as privileged user or grant `CAP_SYS_PTRACE` |

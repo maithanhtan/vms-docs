@@ -1,0 +1,53 @@
+---
+title: 'Probe: check_port'
+description: 'Kiểm tra TCP port đang mở hoặc đóng'
+---
+
+## Mô tả
+
+Probe `check_port` thực hiện TCP connect để kiểm tra port trên host có reachable không. Hỗ trợ cả trường hợp kỳ vọng port mở (mặc định) và kỳ vọng port đóng.
+
+Đây là active check — emit cả metric và check result với latency.
+
+## Config fields
+
+| Field | Type | Bắt buộc | Default | Mô tả |
+|---|---|---|---|---|
+| `type` | `string` | Có | — | Phải là `"check_port"` |
+| `host` | `string` | Có | — | Host hoặc IP cần kiểm tra |
+| `port` | `int` | Có | — | TCP port (1–65535) |
+| `expectOpen` | `bool` | Không | `true` | `true`: kỳ vọng port mở → status `up` khi connect thành công. `false`: kỳ vọng port đóng → status `up` khi connect thất bại |
+
+## Metrics
+
+| Metric | Type | Unit | Mô tả |
+|---|---|---|---|
+| `vms.check_port.status` | status | — | `up` hoặc `down` |
+| `vms.check_port.latency_ms` | gauge | ms | Thời gian TCP connect |
+
+## Ví dụ config
+
+```json
+{
+  "type": "check_port",
+  "host": "10.0.0.10",
+  "port": 443,
+  "expectOpen": true
+}
+```
+
+**Kiểm tra port phải đóng:**
+
+```json
+{
+  "type": "check_port",
+  "host": "10.0.0.10",
+  "port": 3389,
+  "expectOpen": false
+}
+```
+
+## Lưu ý
+
+- Khi kết quả không khớp kỳ vọng (port mở mà expect đóng, hoặc ngược lại), severity là `critical`.
+- Connect thất bại do network là kết quả bình thường (`status=down`), không phải lỗi agent.
