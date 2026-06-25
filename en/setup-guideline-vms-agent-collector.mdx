@@ -10,7 +10,7 @@ description: 'Deploy agents by script and configure probe monitoring'
 The VMS agent collector (Vero Metric Collector) is installed at the customer host or site to collect metrics, checks, and logs, then securely push them to the central VMS Master over HTTPS.
 
 <Info>
-**Cross-Platform Support**: VMS Agent runs natively on **Linux** (systemd) and **Windows**, with containerized options (Docker / Kubernetes).
+**Cross-Platform Support**: VMS Agent runs natively on **Linux** and **Windows**, with containerized options (Docker / Kubernetes).
 </Info>
 
 ## Agent Deployment Overview
@@ -25,9 +25,10 @@ Below is the connection and reporting structure of the VMS Agent deployed on bot
 
 | Prerequisite | Description |
 |---|---|
-| OS | **Linux** (systemd) or **Windows** |
+| OS | **Linux** or **Windows** |
 | Connection | No inbound ports. Outbound HTTPS to `INGRESS_URL` to push metrics/logs and fetch config, and to the Dashboard to download the agent binary |
 | API Key | A valid API key generated from VMS Master, embedded in the install script |
+| TLS Mode | Public CA, internal CA file, or skip certificate verification (default when `CA_URL` is empty) |
 
 ---
 
@@ -38,6 +39,8 @@ Installation uses `agent.sh` (Linux) or `agent.ps1` (Windows). Each embeds its c
 <Steps>
   <Step title="1. Get the script and binary from File Storage">
     On the VMS Dashboard, open **File Storage**, upload (or fetch) `agent.sh`/`agent.ps1` and the agent binary archive. Use the **Copy link** (alias) button to get a link that always points to the latest upload.
+
+    ![Agent files listed in File Storage](/images/agent-install/08-file-storage.png)
   </Step>
   <Step title="2. Edit the CONFIG block">
     Open the script and fill in the values in the `CONFIG` block:
@@ -63,9 +66,11 @@ These installation steps follow the **Step (Action) - Check (Verification) - Res
       ```bash
       curl -fsSL "<agent.sh link>" | sh
       ```
-      The script downloads the binary, writes config, installs the service, enables + starts it, then self-verifies registration.
+      The script downloads the binary, writes config, installs, starts the agent, and self-verifies registration.
     - **Check**: The script prints `Step 1/6 ... 6/6` progress and ends with a result banner.
     - **Result**: `SUCCESS (verified): vms-monitor-agent <version> installed`.
+
+    ![Output of the agent install script on Linux](/images/agent-install/01-install.png)
   </Step>
 
   <Step title="2. Check the service">
@@ -75,6 +80,8 @@ These installation steps follow the **Step (Action) - Check (Verification) - Res
       ```
     - **Check**: Status shows `active (running)`.
     - **Result**: Binary at `~/.local/bin/vms-monitor-agent`, config at `~/.config/vms-monitor-agent/agent.env`.
+
+    ![vms-monitor-agent service active and running](/images/agent-install/02-service-status.png)
   </Step>
 
   <Step title="3. Verify connection logs">
@@ -87,11 +94,29 @@ These installation steps follow the **Step (Action) - Check (Verification) - Res
       ```json
       {"level":"INFO","msg":"agent started","agentKey":"web-01/appuser","configVersion":12,"probes":8}
       ```
+
+    ![JSON "agent started" log on Linux](/images/agent-install/03-logs.png)
   </Step>
 </Steps>
 
-**Update**: re-run the same install command; the script compares versions and asks before replacing the binary (set `VMS_ASSUME_YES=1` for non-interactive updates).
-**Uninstall**: `curl -fsSL "<agent.sh link>" | sh -s -- uninstall` (add `--purge` to also wipe state).
+Once installed, the agent self-registers and appears in **Agent Config (FLEET)** on the Dashboard with an online status (green dot), along with its version, IP, and probe count:
+
+![Agent online in the FLEET panel on the Dashboard](/images/agent-install/09-agent-online.png)
+
+**Update**: re-run the same install command; the script compares versions and asks before replacing the binary (set `VMS_ASSUME_YES=1` for non-interactive updates). When the host is already on the latest version, the script only health-checks it and reports `already current`:
+
+![Re-running the install command when already on the latest version](/images/agent-install/07-update.png)
+
+**Uninstall** — run it directly from the binary (recommended), or re-fetch the script:
+
+```bash
+# Remove on the host with the binary; add --purge to also wipe state:
+vms-monitor-agent uninstall
+# Or, on a host without this command, re-fetch the script (same as the Dashboard "Run command"):
+curl -fsSL "<agent.sh link>" | sh -s -- uninstall
+```
+
+![Uninstalling via the vms-monitor-agent uninstall command](/images/agent-install/06-uninstall.png)
 
 ---
 
@@ -105,7 +130,7 @@ These installation steps follow the **Step (Action) - Check (Verification) - Res
       ```powershell
       irm "<agent.ps1 link>" | iex
       ```
-      The script downloads + extracts the binary, writes config, registers auto-start, starts the agent, then verifies.
+      The script downloads + extracts the binary, writes config, installs, starts the agent, and verifies.
     - **Check**: The script prints `Step 1/6 ... 6/6` progress and ends with a banner.
     - **Result**: `SUCCESS (verified): vms-monitor-agent <version> installed`.
   </Step>
@@ -120,18 +145,56 @@ These installation steps follow the **Step (Action) - Check (Verification) - Res
     - **Result**: Binary at `%LOCALAPPDATA%\vms-monitor-agent\vms-monitor-agent.exe`.
   </Step>
 
-  <Step title="3. Verify version">
-    - **Step**: Print version information:
+  <Step title="3. Check logs / version">
+    - **Step**: Print the version and confirm the agent is reporting to the Dashboard:
       ```powershell
       & "$env:LOCALAPPDATA\vms-monitor-agent\vms-monitor-agent.exe" version
       ```
-    - **Check**: Prints version, commit, and build date.
-    - **Result**: Confirms the installed version.
+    - **Check**: Prints version, commit, and build date; the agent appears in the Dashboard list.
+    - **Result**: Correct installed version and the agent is online.
   </Step>
 </Steps>
 
-**Update**: re-run `irm "<agent.ps1 link>" | iex`.
-**Uninstall**: `& ([scriptblock]::Create((irm "<agent.ps1 link>"))) uninstall` (add `-Purge` to also delete the install dir).
+**Update**: re-run the install command above (`irm "<agent.ps1 link>" | iex`).
+
+**Uninstall** — run it directly from the binary (recommended), or re-fetch the script exactly like the Dashboard **Copy** button:
+
+```powershell
+# Remove on the host with the binary; add --purge to also delete the install dir:
+vms-monitor-agent uninstall
+# Or re-fetch the script (same as the Dashboard "Run command"):
+& ([scriptblock]::Create((irm "<agent.ps1 link>"))) uninstall
+```
+
+---
+
+## Managing the agent from the command line
+
+After install, the binary's directory is added to your `PATH`, so just **open a new terminal/PowerShell** and manage the agent with the bare `vms-monitor-agent` command (no `sudo`/Administrator needed). The installer also **prints this command list at the end** of a successful run. These commands drive the same per-user mechanism the script set up: systemd `--user` (Linux) and a Scheduled Task (Windows).
+
+| Command | What it does |
+|---|---|
+| `vms-monitor-agent status` | Show installed / running / auto-start / version |
+| `vms-monitor-agent start` | Start and enable auto-start at login/boot |
+| `vms-monitor-agent stop` | Stop **permanently** and disable auto-start — it will **not** come back |
+| `vms-monitor-agent restart` | Restart, leaving auto-start unchanged |
+| `vms-monitor-agent uninstall` | Self-remove the agent (add `--purge` to also wipe state) |
+| `vms-monitor-agent version` | Print version, commit, build date |
+| `vms-monitor-agent help` | Print the full usage guide |
+
+`status` shows whether the agent is installed / running / auto-start / version:
+
+![Output of vms-monitor-agent status](/images/agent-install/04-agent-status.png)
+
+`stop` (permanent) then `start` again — notice `running` and `auto-start` change accordingly:
+
+![Agent stop and start lifecycle](/images/agent-install/05-lifecycle.png)
+
+<Info>
+**`stop` is permanent**: it both stops the process and disables auto-start, so the agent **does not come back after a reboot or re-login** (even if the process is killed). To run it again use `vms-monitor-agent start`; to remove it entirely use `vms-monitor-agent uninstall`.
+
+If the bare command prints `command not found` (e.g. `bash: vms-monitor-agent: command not found`; on PowerShell it's `The term 'vms-monitor-agent' is not recognized...`), open a new shell, or use the full path (`~/.local/bin/vms-monitor-agent` on Linux, `%LOCALAPPDATA%\vms-monitor-agent\vms-monitor-agent.exe` on Windows). If the agent prints `unknown command "status"`, the host is running an older agent that doesn't support the management verbs yet — update it first (re-run the install).
+</Info>
 
 ---
 

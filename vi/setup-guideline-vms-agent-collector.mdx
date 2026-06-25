@@ -10,7 +10,7 @@ description: 'Hướng dẫn triển khai agent bằng script và cấu hình pr
 VMS agent collector (Vero Metric Collector) chạy trực tiếp tại host hoặc customer site để thu thập dữ liệu giám sát (system metrics, process, logs, connections, port status) và gửi về VMS Master qua HTTPS.
 
 <Info>
-**Hỗ trợ đa nền tảng**: VMS Agent chạy trực tiếp trên **Linux** (systemd) và **Windows**, ngoài ra hỗ trợ container hóa qua Docker/Kubernetes.
+**Hỗ trợ đa nền tảng**: VMS Agent chạy trực tiếp trên **Linux** và **Windows**, ngoài ra hỗ trợ container hóa qua Docker/Kubernetes.
 </Info>
 
 ## Mô hình hoạt động của Agent
@@ -25,9 +25,10 @@ Dưới đây là luồng kết nối và báo cáo dữ liệu của Agent trê
 
 | Đầu mục | Yêu cầu chuẩn bị |
 |---|---|
-| OS | **Linux** (systemd) hoặc **Windows** |
+| OS | **Linux** hoặc **Windows** |
 | Kết nối | Không cần mở inbound. Outbound HTTPS tới `INGRESS_URL` để gửi metric/log và nhận config, và tới Dashboard để tải binary agent |
 | API Key | API key hợp lệ sinh từ VMS Master, nhúng sẵn trong script cài |
+| TLS Mode | Public CA, file CA nội bộ, hoặc bỏ qua xác thực cert (mặc định khi để trống `CA_URL`) |
 
 ---
 
@@ -38,6 +39,8 @@ Quy trình cài đặt dùng script `agent.sh` (Linux) hoặc `agent.ps1` (Windo
 <Steps>
   <Step title="1. Lấy script và binary từ File Storage">
     Trên VMS Dashboard, mở **File Storage**, upload (hoặc lấy sẵn) `agent.sh`/`agent.ps1` và archive binary agent. Dùng nút **Copy link** (alias) để lấy link luôn trỏ tới bản mới nhất.
+
+    ![Danh sách file agent trong File Storage](/images/agent-install/08-file-storage.png)
   </Step>
   <Step title="2. Sửa khối CONFIG trong script">
     Mở script và điền các giá trị trong khối `CONFIG`:
@@ -63,9 +66,11 @@ Quy trình cài đặt theo cấu trúc **Thực hiện (Step) - Kiểm tra (Che
       ```bash
       curl -fsSL "<agent.sh link>" | sh
       ```
-      Script tự động tải binary, ghi config, cài service, enable + start, rồi tự verify đăng ký.
+      Script tự tải binary, ghi config, cài đặt, khởi động và tự verify đăng ký.
     - **Check**: Script in tiến trình `Step 1/6 ... 6/6` và kết thúc bằng banner kết quả.
     - **Result**: `SUCCESS (verified): vms-monitor-agent <version> installed`.
+
+    ![Kết quả chạy script cài đặt agent trên Linux](/images/agent-install/01-install.png)
   </Step>
 
   <Step title="2. Kiểm tra service">
@@ -75,6 +80,8 @@ Quy trình cài đặt theo cấu trúc **Thực hiện (Step) - Kiểm tra (Che
       ```
     - **Check**: Trạng thái hiển thị `active (running)`.
     - **Result**: Binary tại `~/.local/bin/vms-monitor-agent`, config tại `~/.config/vms-monitor-agent/agent.env`.
+
+    ![Trạng thái service vms-monitor-agent đang chạy](/images/agent-install/02-service-status.png)
   </Step>
 
   <Step title="3. Kiểm tra logs kết nối">
@@ -87,11 +94,29 @@ Quy trình cài đặt theo cấu trúc **Thực hiện (Step) - Kiểm tra (Che
       ```json
       {"level":"INFO","msg":"agent started","agentKey":"web-01/appuser","configVersion":12,"probes":8}
       ```
+
+    ![Log JSON "agent started" trên Linux](/images/agent-install/03-logs.png)
   </Step>
 </Steps>
 
-**Cập nhật**: chạy lại đúng lệnh cài; script tự so version và hỏi trước khi thay binary (đặt `VMS_ASSUME_YES=1` để cập nhật không tương tác).
-**Gỡ cài**: `curl -fsSL "<agent.sh link>" | sh -s -- uninstall` (thêm `--purge` để xoá cả state).
+Sau khi cài xong, agent tự đăng ký và hiện trong **Agent Config (FLEET)** trên Dashboard với trạng thái online (chấm xanh), kèm version, IP và số probe:
+
+![Agent online trong FLEET trên Dashboard](/images/agent-install/09-agent-online.png)
+
+**Cập nhật**: chạy lại đúng lệnh cài; script tự so version và hỏi trước khi thay binary (đặt `VMS_ASSUME_YES=1` để cập nhật không tương tác). Khi host đã ở bản mới nhất, script chỉ kiểm tra sức khỏe rồi báo `already current`:
+
+![Chạy lại lệnh cài khi agent đã ở bản mới nhất](/images/agent-install/07-update.png)
+
+**Gỡ cài** — chạy thẳng bằng binary (khuyến nghị), hoặc tải lại script:
+
+```bash
+# Gỡ ngay trên máy bằng binary; thêm --purge để xoá cả state:
+vms-monitor-agent uninstall
+# Hoặc, nếu host chưa có lệnh này, tải lại script (giống "Run command" trên Dashboard):
+curl -fsSL "<agent.sh link>" | sh -s -- uninstall
+```
+
+![Gỡ agent bằng lệnh vms-monitor-agent uninstall](/images/agent-install/06-uninstall.png)
 
 ---
 
@@ -105,7 +130,7 @@ Quy trình cài đặt theo cấu trúc **Thực hiện (Step) - Kiểm tra (Che
       ```powershell
       irm "<agent.ps1 link>" | iex
       ```
-      Script tự tải + giải nén binary, ghi config, đăng ký auto-start, start agent, rồi verify.
+      Script tự tải + giải nén binary, ghi config, cài đặt, khởi động và verify.
     - **Check**: Script in tiến trình `Step 1/6 ... 6/6` và kết thúc bằng banner.
     - **Result**: `SUCCESS (verified): vms-monitor-agent <version> installed`.
   </Step>
@@ -120,18 +145,56 @@ Quy trình cài đặt theo cấu trúc **Thực hiện (Step) - Kiểm tra (Che
     - **Result**: Binary tại `%LOCALAPPDATA%\vms-monitor-agent\vms-monitor-agent.exe`.
   </Step>
 
-  <Step title="3. Kiểm tra version">
-    - **Step**: In thông tin phiên bản:
+  <Step title="3. Kiểm tra logs / version">
+    - **Step**: In thông tin phiên bản và kiểm tra agent đã đẩy dữ liệu lên Dashboard:
       ```powershell
       & "$env:LOCALAPPDATA\vms-monitor-agent\vms-monitor-agent.exe" version
       ```
-    - **Check**: In ra version, commit và build date.
-    - **Result**: Xác nhận đúng phiên bản vừa cài.
+    - **Check**: In ra version, commit và build date; agent xuất hiện trong danh sách trên Dashboard.
+    - **Result**: Đúng phiên bản vừa cài và agent đang online.
   </Step>
 </Steps>
 
-**Cập nhật**: chạy lại `irm "<agent.ps1 link>" | iex`.
-**Gỡ cài**: `& ([scriptblock]::Create((irm "<agent.ps1 link>"))) uninstall` (thêm `-Purge` để xoá cả thư mục cài).
+**Cập nhật**: chạy lại lệnh cài ở trên (`irm "<agent.ps1 link>" | iex`).
+
+**Gỡ cài** — chạy thẳng bằng binary (khuyến nghị), hoặc tải lại script đúng như nút **Copy** trên Dashboard:
+
+```powershell
+# Gỡ ngay trên máy bằng binary; thêm --purge để xoá cả thư mục cài:
+vms-monitor-agent uninstall
+# Hoặc tải lại script (giống "Run command" trên Dashboard):
+& ([scriptblock]::Create((irm "<agent.ps1 link>"))) uninstall
+```
+
+---
+
+## Quản lý agent bằng dòng lệnh
+
+Sau khi cài, thư mục chứa binary được thêm vào `PATH` nên chỉ cần **mở terminal/PowerShell mới** là gõ được lệnh `vms-monitor-agent` theo tên trần (không cần `sudo`/Administrator). Script cài cũng **in sẵn danh sách lệnh này ở cuối** khi cài xong. Các lệnh điều khiển đúng cơ chế per-user mà script đã dựng: systemd `--user` (Linux) và Scheduled Task (Windows).
+
+| Lệnh | Tác dụng |
+|---|---|
+| `vms-monitor-agent status` | Xem trạng thái: đã cài / đang chạy / auto-start / version |
+| `vms-monitor-agent start` | Khởi động và bật tự chạy lại khi đăng nhập/khởi động máy |
+| `vms-monitor-agent stop` | Dừng **hẳn** và tắt auto-start — agent **sẽ không tự dậy lại** |
+| `vms-monitor-agent restart` | Khởi động lại, giữ nguyên auto-start |
+| `vms-monitor-agent uninstall` | Tự gỡ agent (thêm `--purge` để xoá cả state) |
+| `vms-monitor-agent version` | In version, commit, build date |
+| `vms-monitor-agent help` | In hướng dẫn sử dụng đầy đủ |
+
+Lệnh `status` cho biết agent đã cài / đang chạy / auto-start / version:
+
+![Kết quả lệnh vms-monitor-agent status](/images/agent-install/04-agent-status.png)
+
+Minh hoạ `stop` (dừng hẳn) rồi `start` lại — chú ý `running` và `auto-start` đổi trạng thái theo:
+
+![Vòng đời stop và start agent](/images/agent-install/05-lifecycle.png)
+
+<Info>
+**`stop` là dừng hẳn**: nó vừa dừng tiến trình vừa tắt auto-start, nên agent **không tự chạy lại sau reboot hay đăng nhập lại** (kể cả khi process bị kill). Muốn chạy lại dùng `vms-monitor-agent start`; muốn gỡ hẳn dùng `vms-monitor-agent uninstall`.
+
+Nếu gõ tên trần mà shell báo `command not found` (ví dụ `bash: vms-monitor-agent: command not found`; trên PowerShell là `The term 'vms-monitor-agent' is not recognized...`), hãy mở shell mới, hoặc dùng đường dẫn đầy đủ (`~/.local/bin/vms-monitor-agent` trên Linux, `%LOCALAPPDATA%\vms-monitor-agent\vms-monitor-agent.exe` trên Windows). Nếu agent in `unknown command "status"`, host đang chạy bản agent cũ chưa hỗ trợ lệnh quản lý — hãy cập nhật trước (chạy lại lệnh cài).
+</Info>
 
 ---
 
