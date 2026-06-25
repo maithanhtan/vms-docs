@@ -77,8 +77,6 @@
               "en/probes/log-get",
               "en/probes/auto-discovery",
               "en/probes/custom-check",
-              "en/probes/container-mon",
-              "en/probes/k8s-mon",
               "en/probes/snmp-check",
               "en/probes/wmi-perf"
             ]
@@ -128,8 +126,6 @@
               "vi/probes/log-get",
               "vi/probes/auto-discovery",
               "vi/probes/custom-check",
-              "vi/probes/container-mon",
-              "vi/probes/k8s-mon",
               "vi/probes/snmp-check",
               "vi/probes/wmi-perf"
             ]

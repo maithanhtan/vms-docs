@@ -7,15 +7,9 @@ description: 'Deploy agents by script and configure probe monitoring'
   <div style={{ width: '75%', height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--accent-primary) 0%, var(--accent-light) 50%, var(--accent-dark) 100%)' }} />
 </div>
 
-The VMS agent collector (Vero Metric Collector) is installed at the customer host or site to collect metrics, checks, and logs, then securely push them to the central VMS Master over HTTPS.
-
-<Info>
-**Cross-Platform Support**: VMS Agent runs natively on **Linux** and **Windows**, with containerized options (Docker / Kubernetes).
-</Info>
+The VMS agent collector runs on the customer host to collect metrics, checks, and logs, then pushes them to VMS Master over HTTPS.
 
 ## Agent Deployment Overview
-
-Below is the connection and reporting structure of the VMS Agent deployed on both Linux and Windows environments:
 
 ![VMS Agent Deployment](/images/vms_agent_deployment.png)
 
@@ -26,24 +20,21 @@ Below is the connection and reporting structure of the VMS Agent deployed on bot
 | Prerequisite | Description |
 |---|---|
 | OS | **Linux** or **Windows** |
-| Connection | No inbound ports. Outbound HTTPS to `INGRESS_URL` to push metrics/logs and fetch config, and to the Dashboard to download the agent binary |
-| API Key | A valid API key generated from VMS Master, embedded in the install script |
+| Connection | Outbound HTTPS to `INGRESS_URL` |
+| API Key | From VMS Master, embedded in the install script |
 
 ---
 
 
 ## Deployment Flow on Linux
 
-These installation steps follow the **Step (Action) - Check (Verification) - Result (Expected Outcome)** structure:
-
 <Steps>
   <Step title="1. Run the install script">
-    - **Step**: On the target host, run the configured script (no sudo):
+    - **Step**: On the target host, run the script (no sudo required):
       ```bash
       curl -fsSL "<agent.sh link>" | sh
       ```
-      The script downloads the binary, writes config, installs, starts the agent, and self-verifies registration.
-    - **Check**: The script prints `Step 1/6 ... 6/6` progress and ends with a result banner.
+    - **Check**: The script prints `Step 1/6 ... 6/6` progress.
     - **Result**: `SUCCESS (verified): vms-monitor-agent <version> installed`.
 
     ![Output of the agent install script on Linux](/images/agent-install/01-install.png)
@@ -75,39 +66,21 @@ These installation steps follow the **Step (Action) - Check (Verification) - Res
   </Step>
 </Steps>
 
-Once installed, the agent self-registers and appears in **Agent Config (FLEET)** on the Dashboard with an online status (green dot), along with its version, IP, and probe count:
+Once installed, the agent appears in **Agent Config (FLEET)** on the Dashboard:
 
 ![Agent online in the FLEET panel on the Dashboard](/images/agent-install/09-agent-online.png)
-
-**Update**: re-run the same install command; the script compares versions and asks before replacing the binary (set `VMS_ASSUME_YES=1` for non-interactive updates). When the host is already on the latest version, the script only health-checks it and reports `already current`:
-
-![Re-running the install command when already on the latest version](/images/agent-install/07-update.png)
-
-**Uninstall** — run it directly from the binary (recommended), or re-fetch the script:
-
-```bash
-# Remove on the host with the binary; add --purge to also wipe state:
-vms-monitor-agent uninstall
-# Or, on a host without this command, re-fetch the script (same as the Dashboard "Run command"):
-curl -fsSL "<agent.sh link>" | sh -s -- uninstall
-```
-
-![Uninstalling via the vms-monitor-agent uninstall command](/images/agent-install/06-uninstall.png)
 
 ---
 
 ## Deployment Flow on Windows
 
-These installation steps follow the **Step (Action) - Check (Verification) - Result (Expected Outcome)** structure:
-
 <Steps>
   <Step title="1. Run the install script">
-    - **Step**: Open PowerShell and run (no Administrator required):
+    - **Step**: Open PowerShell (no Administrator required):
       ```powershell
       irm "<agent.ps1 link>" | iex
       ```
-      The script downloads + extracts the binary, writes config, installs, starts the agent, and verifies.
-    - **Check**: The script prints `Step 1/6 ... 6/6` progress and ends with a banner.
+    - **Check**: The script prints `Step 1/6 ... 6/6` progress.
     - **Result**: `SUCCESS (verified): vms-monitor-agent <version> installed`.
   </Step>
 
@@ -131,22 +104,11 @@ These installation steps follow the **Step (Action) - Check (Verification) - Res
   </Step>
 </Steps>
 
-**Update**: re-run the install command above (`irm "<agent.ps1 link>" | iex`).
-
-**Uninstall** — run it directly from the binary (recommended), or re-fetch the script exactly like the Dashboard **Copy** button:
-
-```powershell
-# Remove on the host with the binary; add --purge to also delete the install dir:
-vms-monitor-agent uninstall
-# Or re-fetch the script (same as the Dashboard "Run command"):
-& ([scriptblock]::Create((irm "<agent.ps1 link>"))) uninstall
-```
-
 ---
 
 ## Managing the agent from the command line
 
-After install, the binary's directory is added to your `PATH`, so just **open a new terminal/PowerShell** and manage the agent with the bare `vms-monitor-agent` command (no `sudo`/Administrator needed). The installer also **prints this command list at the end** of a successful run. These commands drive the same per-user mechanism the script set up: systemd `--user` (Linux) and a Scheduled Task (Windows).
+After install, open a **new terminal/PowerShell** and use the `vms-monitor-agent` command (no `sudo`/Administrator needed).
 
 | Command | What it does |
 |---|---|
@@ -174,6 +136,51 @@ If the bare command prints `command not found` (e.g. `bash: vms-monitor-agent: c
 
 ---
 
+## Updating the agent
+
+To update the agent, re-run the installation command on your host:
+
+- **Linux**:
+  ```bash
+  curl -fsSL "<agent.sh link>" | sh
+  ```
+  The script compares the installed version with the latest version and asks before replacing the binary (set `VMS_ASSUME_YES=1` for non-interactive updates).
+  
+  If the host is already on the latest version, the script only health-checks it and reports `already current`:
+
+  ![Re-running the install command when already on the latest version](/images/agent-install/07-update.png)
+
+- **Windows**:
+  ```powershell
+  irm "<agent.ps1 link>" | iex
+  ```
+
+---
+
+## Uninstalling the agent
+
+To uninstall the agent, run the uninstall command directly from the binary (recommended), or re-fetch the installation script with the uninstall parameter:
+
+- **Linux**:
+  ```bash
+  # Remove on the host with the binary; add --purge to also wipe state:
+  vms-monitor-agent uninstall
+  # Or, on a host without this command, re-fetch the script:
+  curl -fsSL "<agent.sh link>" | sh -s -- uninstall
+  ```
+  
+  ![Uninstalling via the vms-monitor-agent uninstall command](/images/agent-install/06-uninstall.png)
+
+- **Windows**:
+  ```powershell
+  # Remove on the host with the binary; add --purge to also delete the install dir:
+  vms-monitor-agent uninstall
+  # Or re-fetch the script:
+  & ([scriptblock]::Create((irm "<agent.ps1 link>"))) uninstall
+  ```
+
+---
+
 ## Troubleshooting
 
 | Symptoms | Likely Cause | Resolution |
@@ -183,5 +190,3 @@ If the bare command prints `command not found` (e.g. `bash: vms-monitor-agent: c
 | `x509 unknown authority` | Ingress uses a private CA | Set `CA_URL` to the internal CA (the script sets `VMS_TLS_CA_FILE`) |
 | Ping transitions to TCP fallback | Lack of raw ICMP privileges | Grant `CAP_NET_RAW` or accept TCP fallback |
 | Connection/Process missing process names | Lack of process attribution permission | Run with appropriate privileges or grant `CAP_SYS_PTRACE` per policy |
-| Container probe not running | The default binary excludes the container probe | Use a `vms_heavy` build and mount the socket read-only per policy |
-| K8s probe permission missing | Missing ServiceAccount/RBAC | Grant get/list on workloads/pods/nodes, and metrics-server if `collectStats` |
