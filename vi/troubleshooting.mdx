@@ -33,11 +33,11 @@ Trang này dùng cho vận hành VMS master, VMS agent collector, dashboard, ale
 
 | Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
 |---|---|---|
-| Master không thấy heartbeat | Collector chưa start, sai token, sai ingest URL | Kiểm tra service status, token file, DNS, TLS và ingest URL |
-| Heartbeat có nhưng metric rỗng | Module host metric chưa bật hoặc thiếu quyền đọc | Kiểm tra cấu hình `[host_metrics]`, user chạy collector và permission |
+| Master không thấy heartbeat | Agent chưa start, sai API key, sai ingest URL | Kiểm tra agent đang chạy, API key trong CONFIG, DNS, TLS và ingest URL |
+| Heartbeat có nhưng metric rỗng | Chưa bật probe thu thập hoặc thiếu quyền đọc | Kiểm tra probe (vd `host_resource`) trên Dashboard và quyền đọc |
 | Dữ liệu lúc có lúc mất | Network chập chờn, firewall idle timeout, retry quá thấp | Kiểm tra egress tới master, tăng retry/backoff và keepalive |
 | Chỉ một service mất check | Process name, port hoặc health path sai | Đối chiếu inventory, kiểm tra process thật và test port từ collector |
-| Collector duplicate | Hai collector dùng cùng id hoặc hostname tag | Tạo id riêng, sửa tag và xóa instance duplicate khỏi inventory |
+| Agent trùng lặp | Hai agent chạy trùng trên cùng host | Mỗi host chỉ chạy 1 agent; gỡ bản thừa bằng `uninstall` |
 
 ## Dashboard stale hoặc thiếu dữ liệu
 
@@ -80,7 +80,7 @@ Trang này dùng cho vận hành VMS master, VMS agent collector, dashboard, ale
 
 | Thông tin | Ví dụ |
 |---|---|
-| Collector | Collector id, hostname, version, environment |
+| Agent | Hostname, version, environment |
 | Target | System/service/dependency bị ảnh hưởng |
 | Timestamp | Thời điểm bắt đầu lỗi và thời điểm metric cuối |
 | Dashboard | Tên dashboard, panel, query range |

@@ -10,7 +10,7 @@ description: 'Deploy agents by script and configure probe monitoring'
 The VMS agent collector (Vero Metric Collector) is installed at the customer host or site to collect metrics, checks, and logs, then securely push them to the central VMS Master over HTTPS.
 
 <Info>
-**Cross-Platform Support**: VMS Agent natively runs on **Linux** as a systemd service and on **Windows** as a Windows Service, as well as containerized options (Docker / Kubernetes).
+**Cross-Platform Support**: VMS Agent runs natively on **Linux** (systemd) and **Windows**, with containerized options (Docker / Kubernetes).
 </Info>
 
 ## Agent Deployment Overview
@@ -25,129 +25,124 @@ Below is the connection and reporting structure of the VMS Agent deployed on bot
 
 | Prerequisite | Description |
 |---|---|
-| OS | **Linux** (systemd) or **Windows** (Windows Service) |
-| Connection | Outbound HTTPS connectivity to the VMS Master `INGRESS_URL`. No inbound ports are required |
-| API Key | A valid agent auth key generated from VMS Master |
-| TLS Mode | Trusted SSL Certificate or path to the custom CA file |
+| OS | **Linux** (systemd) or **Windows** |
+| Connection | No inbound ports. Outbound HTTPS to `INGRESS_URL` to push metrics/logs and fetch config, and to the Dashboard to download the agent binary |
+| API Key | A valid API key generated from VMS Master, embedded in the install script |
 
 ---
 
-## Deployment Flow on Linux (systemd)
+## Step 0 — Prepare the script and binary (on the Dashboard)
+
+Installation uses `agent.sh` (Linux) or `agent.ps1` (Windows). Each embeds its configuration in a `CONFIG` block and downloads the agent binary itself.
+
+<Steps>
+  <Step title="1. Get the script and binary from File Storage">
+    On the VMS Dashboard, open **File Storage**, upload (or fetch) `agent.sh`/`agent.ps1` and the agent binary archive. Use the **Copy link** (alias) button to get a link that always points to the latest upload.
+  </Step>
+  <Step title="2. Edit the CONFIG block">
+    Open the script and fill in the values in the `CONFIG` block:
+    ```bash
+    INGRESS_URL="https://ingest.CUSTOMER_DOMAIN"   # VMS Master endpoint
+    API_KEY="<API key from VMS Master>"
+    BIN_URL="<alias link of the binary archive on File Storage>"
+    CA_URL=""                                       # internal CA link; empty = skip TLS verification
+    ```
+    Save and re-upload the script to File Storage to reuse it across machines.
+  </Step>
+</Steps>
+
+---
+
+## Deployment Flow on Linux
 
 These installation steps follow the **Step (Action) - Check (Verification) - Result (Expected Outcome)** structure:
 
 <Steps>
-  <Step title="1. Download and Install Agent Binary">
-    - **Step**: Download the installation script from your customer domain to pull down the binary:
+  <Step title="1. Run the install script">
+    - **Step**: On the target host, run the configured script (no sudo):
       ```bash
-      curl -fsSL https://CUSTOMER_DOMAIN/agent/install/linux.sh | sudo bash -s -- --ingress-url https://ingest.CUSTOMER_DOMAIN --api-key YOUR_API_KEY
+      curl -fsSL "<agent.sh link>" | sh
       ```
-    - **Check**: Verify that the binary runs and displays version information:
-      ```bash
-      vms-monitor-agent version
-      ```
-    - **Result**: Version, build date, and git commit of the agent are successfully printed.
+      The script downloads the binary, writes config, installs the service, enables + starts it, then self-verifies registration.
+    - **Check**: The script prints `Step 1/6 ... 6/6` progress and ends with a result banner.
+    - **Result**: `SUCCESS (verified): vms-monitor-agent <version> installed`.
   </Step>
 
-  <Step title="2. Configure Environment and TLS certs">
-    - **Step**: Configure `/etc/vms-monitor-agent/agent.env` with variables and specify the CA cert path if self-signed:
+  <Step title="2. Check the service">
+    - **Step**: Query the service status:
       ```bash
-      VMS_METRICS_INGRESS_URL="https://ingest.CUSTOMER_DOMAIN"
-      VMS_METRICS_INGRESS_API_KEY="YOUR_API_KEY"
-      VMS_TLS_CA_FILE="/etc/vms-monitor-agent/ca.crt"
+      systemctl --user status vms-monitor-agent --no-pager
       ```
-    - **Check**: Read the file to ensure variables are set:
-      ```bash
-      cat /etc/vms-monitor-agent/agent.env
-      ```
-    - **Result**: The environment file is generated containing all required connection keys.
+    - **Check**: Status shows `active (running)`.
+    - **Result**: Binary at `~/.local/bin/vms-monitor-agent`, config at `~/.config/vms-monitor-agent/agent.env`.
   </Step>
 
-  <Step title="3. Launch systemd Service">
-    - **Step**: Reload systemd configurations, enable and start the agent daemon:
+  <Step title="3. Verify connection logs">
+    - **Step**: Tail live logs:
       ```bash
-      sudo systemctl daemon-reload
-      sudo systemctl enable --now vms-monitor-agent
+      journalctl --user -u vms-monitor-agent -f
       ```
-    - **Check**: Query the systemd service status:
-      ```bash
-      sudo systemctl status vms-monitor-agent --no-pager
+    - **Check**: Look for the `agent started` line with `agentKey`, `probes`, and `configVersion`.
+    - **Result**: A JSON log line appears, e.g.:
+      ```json
+      {"level":"INFO","msg":"agent started","agentKey":"web-01/appuser","configVersion":12,"probes":8}
       ```
-    - **Result**: The service status displays `active (running)`.
-  </Step>
-
-  <Step title="4. Verify Connection Logs">
-    - **Step**: Monitor live logs to confirm successful metric ingest:
-      ```bash
-      sudo journalctl -u vms-monitor-agent -n 50 -f --no-pager
-      ```
-    - **Check**: Inspect logs for transmission status indicators.
-    - **Result**: Logs report `INFO [Ingress] Reporting probe results to vms-ingress...` without auth or handshake errors.
   </Step>
 </Steps>
 
+**Update**: re-run the same install command; the script compares versions and asks before replacing the binary (set `VMS_ASSUME_YES=1` for non-interactive updates).
+**Uninstall**: `curl -fsSL "<agent.sh link>" | sh -s -- uninstall` (add `--purge` to also wipe state).
+
 ---
 
-## Deployment Flow on Windows (Windows Service)
+## Deployment Flow on Windows
 
-Windows installation steps structured as **Step (Action) - Check (Verification) - Result (Expected Outcome)**:
+These installation steps follow the **Step (Action) - Check (Verification) - Result (Expected Outcome)** structure:
 
 <Steps>
-  <Step title="1. Download Installer Script">
-    - **Step**: Open an elevated PowerShell session (Admin) and download the install utility script:
+  <Step title="1. Run the install script">
+    - **Step**: Open PowerShell and run (no Administrator required):
       ```powershell
-      iwr https://CUSTOMER_DOMAIN/agent/install/windows.ps1 -OutFile install.ps1
+      irm "<agent.ps1 link>" | iex
       ```
-    - **Check**: Test that the script file was successfully saved:
-      ```powershell
-      Test-Path .\install.ps1
-      ```
-    - **Result**: Output evaluates to `True`.
+      The script downloads + extracts the binary, writes config, registers auto-start, starts the agent, then verifies.
+    - **Check**: The script prints `Step 1/6 ... 6/6` progress and ends with a banner.
+    - **Result**: `SUCCESS (verified): vms-monitor-agent <version> installed`.
   </Step>
 
-  <Step title="2. Execute Installation Script">
-    - **Step**: Run the helper script specifying the ingest URL and your key:
+  <Step title="2. Check the agent status">
+    - **Step**: Inspect the auto-start task and the agent process:
       ```powershell
-      PowerShell -ExecutionPolicy Bypass -File .\install.ps1 -IngressUrl "https://ingest.CUSTOMER_DOMAIN" -ApiKey "YOUR_API_KEY"
+      Get-ScheduledTask -TaskName vms-monitor-agent
+      Get-Process vms-monitor-agent
       ```
-    - **Check**: Verify the installation target contains the executable:
-      ```powershell
-      .\vms-monitor-agent.exe version
-      ```
-    - **Result**: Executable executes and prints version info.
+    - **Check**: The task exists and an agent process is running.
+    - **Result**: Binary at `%LOCALAPPDATA%\vms-monitor-agent\vms-monitor-agent.exe`.
   </Step>
 
-  <Step title="3. Start Windows Service">
-    - **Step**: Start the service via Service Controller:
+  <Step title="3. Verify version">
+    - **Step**: Print version information:
       ```powershell
-      Start-Service -Name "vms-monitor-agent"
+      & "$env:LOCALAPPDATA\vms-monitor-agent\vms-monitor-agent.exe" version
       ```
-    - **Check**: Verify the service status:
-      ```powershell
-      Get-Service -Name "vms-monitor-agent"
-      ```
-    - **Result**: The status returns `Running`.
-  </Step>
-
-  <Step title="4. Verify via Event Viewer Logs">
-    - **Step**: Retrieve the latest system logs created by the agent source:
-      ```powershell
-      Get-EventLog -LogName Application -Source vms-monitor-agent -Newest 10
-      ```
-    - **Check**: Read messages to verify heartbeat status.
-    - **Result**: Event log contains startup messages indicating successful authentication and metric delivery.
+    - **Check**: Prints version, commit, and build date.
+    - **Result**: Confirms the installed version.
   </Step>
 </Steps>
 
----
+**Update**: re-run `irm "<agent.ps1 link>" | iex`.
+**Uninstall**: `& ([scriptblock]::Create((irm "<agent.ps1 link>"))) uninstall` (add `-Purge` to also delete the install dir).
 
+---
 
 ## Troubleshooting
 
 | Symptoms | Likely Cause | Resolution |
 |---|---|---|
-| Agent fails to start immediately | Missing ingest URL or API key | Check environment variables or configuration file |
-| `401` Authentication blocked | Invalid or rotated API key | Fetch a new key from VMS Master and restart agent |
-| `x509 unknown authority` | Ingress using self-signed cert | Set `VMS_TLS_CA_FILE` environment variable to CA certificate |
-| Ping transitions to TCP fallback | Lack of ICMP socket privileges | Assign `CAP_NET_RAW` or allow fallback |
-| Connection/Process logs missing names | Lack of system process reading access | Execute as privileged user or grant `CAP_SYS_PTRACE` |
+| Agent fails to start immediately | Missing ingress URL or API key | Check and fix the CONFIG block in the script, then re-run |
+| `401` Authentication blocked | Invalid or rotated API key | Get a new key from VMS Master and re-run the script |
+| `x509 unknown authority` | Ingress uses a private CA | Set `CA_URL` to the internal CA (the script sets `VMS_TLS_CA_FILE`) |
+| Ping transitions to TCP fallback | Lack of raw ICMP privileges | Grant `CAP_NET_RAW` or accept TCP fallback |
+| Connection/Process missing process names | Lack of process attribution permission | Run with appropriate privileges or grant `CAP_SYS_PTRACE` per policy |
+| Container probe not running | The default binary excludes the container probe | Use a `vms_heavy` build and mount the socket read-only per policy |
+| K8s probe permission missing | Missing ServiceAccount/RBAC | Grant get/list on workloads/pods/nodes, and metrics-server if `collectStats` |

@@ -13,7 +13,7 @@ The VMS Dashboard interface allows you to view the list of active agents, monito
 
 ## Steps to Configure a New Probe
 
-You can add or update monitoring probes through the VMS Dashboard or by editing the Agent's configuration file directly.
+You add or update monitoring probes through the VMS Dashboard; the configuration is synced down to the Agent.
 
 <Steps>
   <Step title="Identify the Target">
@@ -40,15 +40,14 @@ You can add or update monitoring probes through the VMS Dashboard or by editing 
       "config": {
         "url": "https://api.verolabs.co/health",
         "method": "GET",
-        "expectedStatus": 200
+        "expectedStatus": [200]
       }
     }
     ```
   </Step>
   <Step title="Apply and Reload Configuration">
-    - If using the VMS Dashboard, click **Save / Apply** to deploy the configuration changes to the Agent.
-    - If editing files manually, save the configuration file.
-    - The Agent automatically pulls new configurations based on `VMS_CONFIG_REFRESH_SECONDS` (usually every 30s to 60s) without needing a service restart.
+    - On the VMS Dashboard, click **Save / Apply** to deploy the configuration to the Agent.
+    - The Agent automatically pulls the new configuration on its sync cycle (`VMS_CONFIG_REFRESH_SECONDS`, usually 30–60s) without a service restart.
   </Step>
 </Steps>
 
@@ -63,13 +62,14 @@ You can view the VMS Agent service logs to verify that configuration updates are
 
 ```bash
 # View real-time logs of VMS Agent
-sudo journalctl -u vms-monitor-agent -f --no-pager
+journalctl --user -u vms-monitor-agent -f
 ```
 
-You should see log output similar to this:
-```text
-INFO[0030] [Config] Fetching latest probes configuration...
-INFO[0031] [Config] Found 2 active probes (host_resource, http_check)
-INFO[0060] [Probe:api-health-check] HTTP GET https://api.verolabs.co/health succeeded, status code 200
-INFO[0060] [Ingress] Reporting 1 probe results to vms-ingress...
+The agent logs in JSON (slog). On startup and config sync you should see lines like:
+```json
+{"level":"INFO","msg":"starting vms-monitor-agent","version":"v0.9.8"}
+{"level":"INFO","msg":"agent started","agentKey":"web-01/appuser","configVersion":12,"probes":2}
+{"level":"INFO","msg":"agent config applied","version":13,"probes":3}
 ```
+
+Probe results are buffered and shipped to the ingress asynchronously; only failures produce `WARN`/`ERROR` lines (e.g. `ingress send failed; will retry`).

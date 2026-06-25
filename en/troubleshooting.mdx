@@ -33,11 +33,11 @@ Use this page for VMS master, VMS agent collector, dashboard, alerting, and synt
 
 | Symptom | Common cause | Fix |
 |---|---|---|
-| Master sees no heartbeat | Collector is stopped, token is wrong, ingest URL is wrong | Check service status, token file, DNS, TLS, and ingest URL |
-| Heartbeat exists but metrics are empty | Host metric module is disabled or lacks read permission | Check `[host_metrics]`, collector user, and permissions |
+| Master sees no heartbeat | Agent stopped, wrong API key, wrong ingest URL | Check the agent is running, the API key in CONFIG, DNS, TLS, and ingest URL |
+| Heartbeat exists but metrics are empty | No collection probe enabled or missing read permission | Check the probe (e.g. `host_resource`) on the Dashboard and read permissions |
 | Data appears intermittently | Unstable network, firewall idle timeout, retry too low | Check egress to master, increase retry/backoff and keepalive |
 | Only one service check is missing | Wrong process name, port, or health path | Compare inventory with the real process and test port from collector |
-| Duplicate collector | Two collectors use the same id or hostname tag | Assign a unique id, fix tags, and remove duplicate inventory entry |
+| Duplicate agent | Two agents running on the same host | Keep one agent per host; remove the extra one with `uninstall` |
 
 ## Dashboard is stale or missing data
 
@@ -80,7 +80,7 @@ Use this page for VMS master, VMS agent collector, dashboard, alerting, and synt
 
 | Information | Example |
 |---|---|
-| Collector | Collector id, hostname, version, environment |
+| Agent | Hostname, version, environment |
 | Target | Affected system/service/dependency |
 | Timestamp | Start time and last metric time |
 | Dashboard | Dashboard name, panel, query range |

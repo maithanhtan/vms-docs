@@ -13,7 +13,7 @@ Giao diện quản lý của VMS Dashboard cho phép bạn theo dõi danh sách 
 
 ## Các bước cấu hình một Probe mới
 
-Để thêm hoặc cập nhật một probe giám sát, bạn có thể thực hiện thông qua giao diện VMS Dashboard hoặc chỉnh sửa trực tiếp file cấu hình của Agent.
+Để thêm hoặc cập nhật một probe giám sát, bạn thực hiện qua giao diện VMS Dashboard; cấu hình sẽ được đồng bộ xuống Agent.
 
 <Steps>
   <Step title="Xác định mục tiêu giám sát (Target)">
@@ -40,15 +40,14 @@ Giao diện quản lý của VMS Dashboard cho phép bạn theo dõi danh sách 
       "config": {
         "url": "https://api.verolabs.co/health",
         "method": "GET",
-        "expectedStatus": 200
+        "expectedStatus": [200]
       }
     }
     ```
   </Step>
   <Step title="Áp dụng và tải lại cấu hình">
-    - Nếu cấu hình qua VMS Dashboard, nhấn **Save / Apply** để gửi cấu hình xuống Agent.
-    - Nếu cấu hình bằng file, lưu file cấu hình của Agent.
-    - Agent sẽ tự động cập nhật cấu hình mới sau chu kỳ đồng bộ (mặc định được cấu hình bởi `VMS_CONFIG_REFRESH_SECONDS`, thông thường từ 30s đến 60s) mà không cần restart service.
+    - Trên VMS Dashboard, nhấn **Save / Apply** để gửi cấu hình xuống Agent.
+    - Agent tự động kéo cấu hình mới sau chu kỳ đồng bộ (`VMS_CONFIG_REFRESH_SECONDS`, thông thường 30–60s) mà không cần restart service.
   </Step>
 </Steps>
 
@@ -63,13 +62,14 @@ Bạn có thể xem journal/log của agent để verify hoạt động gửi nh
 
 ```bash
 # Xem log thời gian thực của VMS Agent
-sudo journalctl -u vms-monitor-agent -f --no-pager
+journalctl --user -u vms-monitor-agent -f
 ```
 
-Khi probe chạy, log sẽ in thông tin tương tự như sau:
-```text
-INFO[0030] [Config] Fetching latest probes configuration...
-INFO[0031] [Config] Found 2 active probes (host_resource, http_check)
-INFO[0060] [Probe:api-health-check] HTTP GET https://api.verolabs.co/health succeeded, status code 200
-INFO[0060] [Ingress] Reporting 1 probe results to vms-ingress...
+Agent ghi log dạng JSON (slog). Khi khởi động và đồng bộ config, log sẽ tương tự:
+```json
+{"level":"INFO","msg":"starting vms-monitor-agent","version":"v0.9.8"}
+{"level":"INFO","msg":"agent started","agentKey":"web-01/appuser","configVersion":12,"probes":2}
+{"level":"INFO","msg":"agent config applied","version":13,"probes":3}
 ```
+
+Kết quả probe được gom buffer và gửi async tới ingress; chỉ khi gửi lỗi mới xuất hiện log `WARN`/`ERROR` (ví dụ `ingress send failed; will retry`).

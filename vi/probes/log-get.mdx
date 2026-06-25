@@ -15,7 +15,7 @@ Khác với `log_mon` (đếm match), `log_get` ship **nội dung** log line.
 |---|---|---|---|---|
 | `type` | `string` | Có | — | Phải là `"log_get"` |
 | `filePath` | `string` | Có | — | Đường dẫn file log cần ship |
-| `readFromEnd` | `bool` | Không | `false` | `true`: lần chạy đầu tiên bắt đầu từ cuối file (chỉ ship dòng mới). `false`: đọc từ đầu file |
+| `readFromEnd` | `bool` | Không | `false` | `true`: lần chạy đầu chỉ ship dòng mới (từ cuối file). `false` (mặc định khi bỏ trống): đọc từ đầu file — có thể ship toàn bộ log hiện có, nên set `true` cho file log lớn |
 | `maxBytesPerRead` | `int64` | Không | 8 MiB | Giới hạn bytes đọc mỗi lần chạy. Tối đa 8 MiB bất kể giá trị cấu hình |
 | `multilineStartPattern` | `string` | Không | — | Regex xác định dòng bắt đầu log entry mới. Dòng không match được nối vào entry trước đó. Nếu để trống, mỗi dòng là 1 entry |
 | `redactPatterns` | `string[]` | Không | — | Danh sách regex — mỗi match trong log line bị thay bằng `***` trước khi ship |

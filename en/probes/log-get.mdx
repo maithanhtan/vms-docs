@@ -5,7 +5,9 @@ description: 'Bounded log shipping with redaction'
 
 ## Description
 
-The `log_get` probe tails a log file and ships newly-appended lines to VMS ingress via `ProbeResult.Logs`. Supports multiline grouping and sensitive data redaction before export.
+The `log_get` probe tails a log file and ships newly-appended lines to VMS ingress via `ProbeResult.Logs`. Supports multiline grouping and sensitive data redaction before export. Tracks the byte offset between runs and resets on truncation/rotation.
+
+Unlike `log_mon` (which counts matches), `log_get` ships the log line **content**.
 
 ## Config fields
 
@@ -13,16 +15,16 @@ The `log_get` probe tails a log file and ships newly-appended lines to VMS ingre
 |---|---|---|---|---|
 | `type` | `string` | Yes | — | Must be `"log_get"` |
 | `filePath` | `string` | Yes | — | Log file path to ship |
-| `readFromEnd` | `bool` | No | `false` | `true`: start from EOF on first run |
-| `maxBytesPerRead` | `int64` | No | 8 MiB | Per-run read window. Clamped to 8 MiB max |
-| `multilineStartPattern` | `string` | No | — | Regex for new log entry start. Non-matching lines join the previous entry |
-| `redactPatterns` | `string[]` | No | — | Regex list — each match in log lines is replaced with `***` before shipping |
+| `readFromEnd` | `bool` | No | `false` | `true`: first run ships only new lines (from EOF). `false` (default when omitted): reads from the start of the file — may ship the entire existing log, so set `true` for large logs |
+| `maxBytesPerRead` | `int64` | No | 8 MiB | Per-run read window. Clamped to 8 MiB regardless of the configured value |
+| `multilineStartPattern` | `string` | No | — | Regex marking the start of a new log entry. Non-matching lines join the previous entry. If empty, each line is one entry |
+| `redactPatterns` | `string[]` | No | — | Regex list — each match in a log line is replaced with `***` before shipping |
 
 ## Metrics
 
-| Metric | Type | Description |
-|---|---|---|
-| `vms.log_get.lines_sent` | counter | Log entries shipped in this run |
+| Metric | Type | Unit | Description |
+|---|---|---|---|
+| `vms.log_get.lines_sent` | counter | — | Log entries shipped in this run |
 
 ## Example config
 
@@ -31,12 +33,25 @@ The `log_get` probe tails a log file and ships newly-appended lines to VMS ingre
   "type": "log_get",
   "filePath": "/var/log/app/app.log",
   "readFromEnd": true,
-  "maxBytesPerRead": 65536,
+  "maxBytesPerRead": 65536
+}
+```
+
+**Multiline Java stack trace:**
+
+```json
+{
+  "type": "log_get",
+  "filePath": "/var/log/app/app.log",
+  "readFromEnd": true,
+  "multilineStartPattern": "^\\d{4}-\\d{2}-\\d{2}",
   "redactPatterns": ["password=[^&\\s]+", "token=[^&\\s]+"]
 }
 ```
 
 ## Notes
 
-- **Redaction happens before shipping** — matched data never leaves the agent.
-- Only ships **complete lines** (ending with `\n`).
+- **Redaction happens before shipping** — data matching `redactPatterns` never leaves the agent.
+- A multiline entry split exactly at a read-window boundary may be shipped as two separate entries — acceptable for a bounded tailer.
+- File missing or unreadable → status `down`, severity `warning`, no lines shipped.
+- Only **complete lines** (ending with `\n`) are read.

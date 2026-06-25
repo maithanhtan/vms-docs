@@ -5,31 +5,34 @@ description: 'Auto-discover connection inventory and service topology'
 
 ## Description
 
-The `auto_discovery` probe reads the host connection table and records a connection inventory for monitored processes. Supports emitting per-connection inventory metrics and/or topology data (listen ports + connection edges) for service dependency mapping.
+The `auto_discovery` probe reads the host connection table and records a connection inventory for the specified processes. Supports emitting per-connection inventory metrics and/or topology data (listen ports + connection edges) to draw a service dependency map.
+
+Requires `ConnAdapter`. When using `processNames`, `CAP_SYS_PTRACE` is needed to attribute sockets to PIDs.
 
 ## Config fields
 
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `type` | `string` | Yes | — | Must be `"auto_discovery"` |
-| `processProbeIds` | `string[]` | No | — | Process probe IDs — agent resolves to processNames automatically |
+| `processProbeIds` | `string[]` | No | — | `process_mon` probe IDs — the agent resolves them to the matching processName |
 | `processNames` | `string[]` | No | — | Process names to discover connections for |
-| `includeStates` | `string[]` | No | — | Only include these connection states |
+| `includeStates` | `string[]` | No | — | Only include these connection states (e.g. `["ESTABLISHED"]`) |
 | `excludeRemoteAddresses` | `string[]` | No | — | Exclude connections to these remote addresses |
 | `excludeRemotePorts` | `int[]` | No | — | Exclude connections to these remote ports |
-| `emitConnectionMetrics` | `bool` | No | `false` | Emit per-connection inventory metrics |
-| `emitTopology` | `bool` | No | `false` | Emit topology data (listen registry + connection edges) |
+| `emitConnectionMetrics` | `bool` | No | `false` | Emit an inventory metric for each discovered connection |
+| `emitTopology` | `bool` | No | `false` | Emit topology data: listen registry + connection edges (for the service dependency map) |
 
 ## Metrics
 
 | Metric | Type | Labels | Condition |
 |---|---|---|---|
-| `vms.connection.discovered_count` | gauge | — | Always |
-| `vms.connection.discovered` | gauge | `process_name`, `local_addr`, `local_port`, `remote_addr`, `remote_port`, `state`, `protocol` | `emitConnectionMetrics = true`. Max 200 series |
+| `vms.connection.discovered_count` | gauge | — | Always emitted |
+| `vms.connection.discovered` | gauge | `process_name`, `remote_addr`, `remote_port`, `state` | `emitConnectionMetrics = true`. Max 200 series |
 | `vms.topology.listen_count` | gauge | — | `emitTopology = true` |
-| `vms.topology.listen` | gauge | `process_name`, `local_addr`, `local_port`, `protocol` | `emitTopology = true`. Max 200 |
+| `vms.topology.listen` | gauge | `process_name`, `pid`, `local_addr`, `local_port`, `proto` | `emitTopology = true`. Max 200 series |
 | `vms.topology.edge_count` | gauge | — | `emitTopology = true` |
-| `vms.topology.edge` | gauge | `process_name`, `local_addr`, `local_port`, `remote_addr`, `remote_port`, `protocol` | `emitTopology = true`. Max 500 |
+| `vms.topology.edge` | gauge | `process_name`, `source_ip`, `source_port`, `destination_ip`, `destination_port`, `proto`, `direction` | `emitTopology = true`. Max 500 series |
+| `vms.agent.permission_missing` | gauge | `capability=CAP_SYS_PTRACE` | When processNames is configured but the permission is missing |
 
 ## Example config
 
@@ -38,6 +41,19 @@ The `auto_discovery` probe reads the host connection table and records a connect
   "type": "auto_discovery",
   "processNames": ["nginx", "java"],
   "includeStates": ["ESTABLISHED"],
+  "emitConnectionMetrics": true
+}
+```
+
+**With topology:**
+
+```json
+{
+  "type": "auto_discovery",
+  "processProbeIds": ["probe-nginx", "probe-api"],
+  "includeStates": ["ESTABLISHED", "LISTEN"],
+  "excludeRemoteAddresses": ["127.0.0.1"],
+  "excludeRemotePorts": [22],
   "emitConnectionMetrics": true,
   "emitTopology": true
 }
@@ -45,5 +61,7 @@ The `auto_discovery` probe reads the host connection table and records a connect
 
 ## Notes
 
-- Series are capped for cardinality: inventory max 200, listen max 200, edges max 500. Total counts are always accurate.
-- `processProbeIds` are resolved to `processNames` by the agent before the probe runs.
+- Series are capped to bound cardinality: inventory max 200, listen max 200, edges max 500. Total counts are always accurate — the cap only affects per-series detail.
+- `processProbeIds` are resolved to `processNames` by the agent before the probe runs. If the probe runs outside the agent (e.g. tests), a warning is logged.
+- `vms.topology.edge` carries a `direction` label (`inbound`/`outbound`) inferred from the host-wide listener set, used to orient the service dependency map.
+- The connection table is attacker-influenceable (any local process can open a socket) — capping series is the anti-cardinality safeguard.

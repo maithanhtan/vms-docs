@@ -7,10 +7,10 @@ description: 'Hướng dẫn triển khai agent bằng script và cấu hình pr
   <div style={{ width: '75%', height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--accent-primary) 0%, var(--accent-light) 50%, var(--accent-dark) 100%)' }} />
 </div>
 
-VMS agent collector (Vero Metric Collector) chạy trực tiếp tại host hoặc customer site để thu thập dữ liệu giám sát (system metrics, process, logs, connections, port status) và gửi về VMS Master qua HTTPS. 
+VMS agent collector (Vero Metric Collector) chạy trực tiếp tại host hoặc customer site để thu thập dữ liệu giám sát (system metrics, process, logs, connections, port status) và gửi về VMS Master qua HTTPS.
 
 <Info>
-**Hỗ trợ đa nền tảng**: VMS Agent hỗ trợ chạy trực tiếp trên **Linux** dưới dạng systemd service và trên **Windows** dưới dạng Windows service, ngoài ra cũng hỗ trợ container hóa qua Docker/Kubernetes.
+**Hỗ trợ đa nền tảng**: VMS Agent chạy trực tiếp trên **Linux** (systemd) và **Windows**, ngoài ra hỗ trợ container hóa qua Docker/Kubernetes.
 </Info>
 
 ## Mô hình hoạt động của Agent
@@ -25,131 +25,124 @@ Dưới đây là luồng kết nối và báo cáo dữ liệu của Agent trê
 
 | Đầu mục | Yêu cầu chuẩn bị |
 |---|---|
-| OS | **Linux** (systemd) hoặc **Windows** (Windows Service) |
-| Kết nối | Inbound port không cần mở. Outbound cần mở kết nối HTTPS tới `INGRESS_URL` |
-| API Key | Key hợp lệ sinh ra từ VMS Master |
-| TLS Mode | Public CA hoặc file private CA được cấu hình nếu tự ký cert |
+| OS | **Linux** (systemd) hoặc **Windows** |
+| Kết nối | Không cần mở inbound. Outbound HTTPS tới `INGRESS_URL` để gửi metric/log và nhận config, và tới Dashboard để tải binary agent |
+| API Key | API key hợp lệ sinh từ VMS Master, nhúng sẵn trong script cài |
 
 ---
 
-## Quy trình triển khai trên Linux (systemd)
+## Bước 0 — Chuẩn bị script và binary (trên Dashboard)
 
-Quy trình cài đặt trên Linux bao gồm các bước theo cấu trúc **Thực hiện (Step) - Kiểm tra (Check) - Kết quả (Result)**:
+Quy trình cài đặt dùng script `agent.sh` (Linux) hoặc `agent.ps1` (Windows). Mỗi script nhúng cấu hình trong khối `CONFIG` và tự tải binary agent về.
 
 <Steps>
-  <Step title="1. Tải và cài đặt Agent">
-    - **Step**: Tải install script từ domain của khách hàng để cài đặt package và binary.
-      ```bash
-      curl -fsSL https://CUSTOMER_DOMAIN/agent/install/linux.sh | sudo bash -s -- --ingress-url https://ingest.CUSTOMER_DOMAIN --api-key YOUR_API_KEY
-      ```
-    - **Check**: Kiểm tra xem file chạy và version đã được tạo đúng chưa:
-      ```bash
-      vms-monitor-agent version
-      ```
-    - **Result**: Hiển thị thông tin phiên bản, commit ID và ngày build của agent.
+  <Step title="1. Lấy script và binary từ File Storage">
+    Trên VMS Dashboard, mở **File Storage**, upload (hoặc lấy sẵn) `agent.sh`/`agent.ps1` và archive binary agent. Dùng nút **Copy link** (alias) để lấy link luôn trỏ tới bản mới nhất.
   </Step>
-
-  <Step title="2. Cấu hình biến môi trường và TLS">
-    - **Step**: Tạo hoặc cập nhật file cấu hình environment `/etc/vms-monitor-agent/agent.env`. Khai báo API key và CA file (nếu dùng CA nội bộ).
-      ```bash
-      VMS_METRICS_INGRESS_URL="https://ingest.CUSTOMER_DOMAIN"
-      VMS_METRICS_INGRESS_API_KEY="YOUR_API_KEY"
-      VMS_TLS_CA_FILE="/etc/vms-monitor-agent/ca.crt"
-      ```
-    - **Check**: Đọc file env để đảm bảo không bị lỗi cú pháp:
-      ```bash
-      cat /etc/vms-monitor-agent/agent.env
-      ```
-    - **Result**: File env được tạo chính xác với các biến môi trường cấu hình kết nối.
-  </Step>
-
-  <Step title="3. Khởi chạy Service">
-    - **Step**: Bật tính năng khởi động cùng hệ thống và start service `vms-monitor-agent` qua systemd:
-      ```bash
-      sudo systemctl daemon-reload
-      sudo systemctl enable --now vms-monitor-agent
-      ```
-    - **Check**: Kiểm tra tình trạng hoạt động của service:
-      ```bash
-      sudo systemctl status vms-monitor-agent --no-pager
-      ```
-    - **Result**: Trạng thái service hiển thị `active (running)`.
-  </Step>
-
-  <Step title="4. Kiểm tra Logs kết nối">
-    - **Step**: Xem logs hoạt động thực tế để xác nhận agent đã giao tiếp được với VMS Master.
-      ```bash
-      sudo journalctl -u vms-monitor-agent -n 50 -f --no-pager
-      ```
-    - **Check**: Tìm log ghi nhận việc kết nối gửi metric.
-    - **Result**: Xuất hiện log `INFO [Ingress] Reporting probe results to vms-ingress...` và không có lỗi auth/connection.
+  <Step title="2. Sửa khối CONFIG trong script">
+    Mở script và điền các giá trị trong khối `CONFIG`:
+    ```bash
+    INGRESS_URL="https://ingest.CUSTOMER_DOMAIN"   # endpoint VMS Master
+    API_KEY="<API key từ VMS Master>"
+    BIN_URL="<alias link archive binary trên File Storage>"
+    CA_URL=""                                       # link CA nội bộ; để trống = bỏ qua xác thực TLS
+    ```
+    Lưu và upload lại script lên File Storage để tái sử dụng cho nhiều máy.
   </Step>
 </Steps>
 
 ---
 
-## Quy trình triển khai trên Windows (Windows Service)
+## Quy trình triển khai trên Linux
 
-Quy trình cài đặt trên Windows bao gồm các bước theo cấu trúc **Thực hiện (Step) - Kiểm tra (Check) - Kết quả (Result)**:
+Quy trình cài đặt theo cấu trúc **Thực hiện (Step) - Kiểm tra (Check) - Kết quả (Result)**:
 
 <Steps>
-  <Step title="1. Tải bộ cài đặt Windows">
-    - **Step**: Mở PowerShell với quyền Administrator và tải file script cài đặt cùng binary:
-      ```powershell
-      iwr https://CUSTOMER_DOMAIN/agent/install/windows.ps1 -OutFile install.ps1
+  <Step title="1. Chạy script cài đặt">
+    - **Step**: Trên host cần giám sát, chạy script đã cấu hình (không cần sudo):
+      ```bash
+      curl -fsSL "<agent.sh link>" | sh
       ```
-    - **Check**: Xác nhận file script đã nằm trong thư mục hiện tại:
-      ```powershell
-      Test-Path .\install.ps1
-      ```
-    - **Result**: Kết quả trả về `True`.
+      Script tự động tải binary, ghi config, cài service, enable + start, rồi tự verify đăng ký.
+    - **Check**: Script in tiến trình `Step 1/6 ... 6/6` và kết thúc bằng banner kết quả.
+    - **Result**: `SUCCESS (verified): vms-monitor-agent <version> installed`.
   </Step>
 
-  <Step title="2. Chạy script cài đặt Service">
-    - **Step**: Thực hiện chạy script cài đặt dịch vụ tự động với thông tin Ingress URL và API Key:
-      ```powershell
-      PowerShell -ExecutionPolicy Bypass -File .\install.ps1 -IngressUrl "https://ingest.CUSTOMER_DOMAIN" -ApiKey "YOUR_API_KEY"
+  <Step title="2. Kiểm tra service">
+    - **Step**: Xem trạng thái service:
+      ```bash
+      systemctl --user status vms-monitor-agent --no-pager
       ```
-    - **Check**: Kiểm tra phiên bản của exe sau khi script hoàn tất:
-      ```powershell
-      .\vms-monitor-agent.exe version
-      ```
-    - **Result**: Phiên bản agent được in ra thành công trên terminal.
+    - **Check**: Trạng thái hiển thị `active (running)`.
+    - **Result**: Binary tại `~/.local/bin/vms-monitor-agent`, config tại `~/.config/vms-monitor-agent/agent.env`.
   </Step>
 
-  <Step title="3. Khởi chạy và kiểm tra Windows Service">
-    - **Step**: Start service thông qua Service Controller của Windows:
-      ```powershell
-      Start-Service -Name "vms-monitor-agent"
+  <Step title="3. Kiểm tra logs kết nối">
+    - **Step**: Xem log thời gian thực:
+      ```bash
+      journalctl --user -u vms-monitor-agent -f
       ```
-    - **Check**: Lấy trạng thái hoạt động của Service:
-      ```powershell
-      Get-Service -Name "vms-monitor-agent"
+    - **Check**: Tìm dòng log `agent started` kèm `agentKey`, `probes`, `configVersion`.
+    - **Result**: Log dạng JSON xuất hiện, ví dụ:
+      ```json
+      {"level":"INFO","msg":"agent started","agentKey":"web-01/appuser","configVersion":12,"probes":8}
       ```
-    - **Result**: Thuộc tính Status hiển thị là `Running`.
-  </Step>
-
-  <Step title="4. Kiểm tra nhật ký Event Viewer">
-    - **Step**: Đọc Event Logs của Application để đảm bảo agent kết nối tốt và không crash.
-      ```powershell
-      Get-EventLog -LogName Application -Source vms-monitor-agent -Newest 10
-      ```
-    - **Check**: Tìm kiếm bản ghi log khởi chạy thành công.
-    - **Result**: Logs báo cáo agent khởi chạy thành công và kết nối thành công tới Ingress API.
   </Step>
 </Steps>
 
+**Cập nhật**: chạy lại đúng lệnh cài; script tự so version và hỏi trước khi thay binary (đặt `VMS_ASSUME_YES=1` để cập nhật không tương tác).
+**Gỡ cài**: `curl -fsSL "<agent.sh link>" | sh -s -- uninstall` (thêm `--purge` để xoá cả state).
+
 ---
 
+## Quy trình triển khai trên Windows
+
+Quy trình cài đặt theo cấu trúc **Thực hiện (Step) - Kiểm tra (Check) - Kết quả (Result)**:
+
+<Steps>
+  <Step title="1. Chạy script cài đặt">
+    - **Step**: Mở PowerShell và chạy (không cần quyền Administrator):
+      ```powershell
+      irm "<agent.ps1 link>" | iex
+      ```
+      Script tự tải + giải nén binary, ghi config, đăng ký auto-start, start agent, rồi verify.
+    - **Check**: Script in tiến trình `Step 1/6 ... 6/6` và kết thúc bằng banner.
+    - **Result**: `SUCCESS (verified): vms-monitor-agent <version> installed`.
+  </Step>
+
+  <Step title="2. Kiểm tra trạng thái agent">
+    - **Step**: Kiểm tra task auto-start và tiến trình agent:
+      ```powershell
+      Get-ScheduledTask -TaskName vms-monitor-agent
+      Get-Process vms-monitor-agent
+      ```
+    - **Check**: Task tồn tại và có process agent đang chạy.
+    - **Result**: Binary tại `%LOCALAPPDATA%\vms-monitor-agent\vms-monitor-agent.exe`.
+  </Step>
+
+  <Step title="3. Kiểm tra version">
+    - **Step**: In thông tin phiên bản:
+      ```powershell
+      & "$env:LOCALAPPDATA\vms-monitor-agent\vms-monitor-agent.exe" version
+      ```
+    - **Check**: In ra version, commit và build date.
+    - **Result**: Xác nhận đúng phiên bản vừa cài.
+  </Step>
+</Steps>
+
+**Cập nhật**: chạy lại `irm "<agent.ps1 link>" | iex`.
+**Gỡ cài**: `& ([scriptblock]::Create((irm "<agent.ps1 link>"))) uninstall` (thêm `-Purge` để xoá cả thư mục cài).
+
+---
 
 ## Troubleshooting thường gặp
 
 | Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
 |---|---|---|
-| Agent start fail ngay | Thiếu ingress URL/API key | Kiểm tra env file hoặc machine env |
-| `401`/auth blocked | API key sai hoặc bị rotate | Lấy key mới từ VMS master và restart agent |
-| `x509 unknown authority` | Ingress dùng private CA | Cài CA file và set `VMS_TLS_CA_FILE` |
+| Agent start fail ngay | Thiếu ingress URL/API key | Kiểm tra và sửa khối CONFIG trong script rồi chạy lại |
+| `401`/auth blocked | API key sai hoặc bị rotate | Lấy key mới từ VMS Master và chạy lại script |
+| `x509 unknown authority` | Ingress dùng private CA | Khai báo `CA_URL` trỏ tới CA nội bộ (script set `VMS_TLS_CA_FILE`) |
 | Ping chuyển TCP fallback | Thiếu raw ICMP permission | Cấp `CAP_NET_RAW` hoặc chấp nhận TCP fallback |
 | Connection/process thiếu process name | Thiếu quyền đọc process attribution | Chạy với quyền phù hợp hoặc cấp `CAP_SYS_PTRACE` theo policy |
-| Container probe không chạy | Gói agent không có probe container hoặc thiếu docker socket | Dùng đúng package agent và mount socket read-only theo risk approval |
+| Container probe không chạy | Binary mặc định không kèm probe container | Dùng bản build `vms_heavy` và mount socket read-only theo policy |
 | K8s probe permission missing | Thiếu ServiceAccount/RBAC | Cấp get/list workload/pod/node và metrics-server nếu `collectStats` |
