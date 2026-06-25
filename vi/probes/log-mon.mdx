@@ -3,6 +3,10 @@ title: 'Probe: log_mon'
 description: 'Đếm log line match pattern trong file'
 ---
 
+<Info>
+Probe này hiện dừng ở mức trải nghiệm.
+</Info>
+
 ## Mô tả
 
 Probe `log_mon` tail file log, đếm số dòng mới match `includePattern` (và không match `excludePattern`). Probe track byte offset giữa các lần chạy — chỉ đếm dòng mới append, reset khi file bị truncate/rotate.

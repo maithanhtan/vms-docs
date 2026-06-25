@@ -3,6 +3,10 @@ title: 'Probe: log_get'
 description: 'Ship log line có giới hạn với redaction'
 ---
 
+<Info>
+Probe này hiện dừng ở mức trải nghiệm.
+</Info>
+
 ## Mô tả
 
 Probe `log_get` tail file log và ship dòng mới tới VMS ingress qua `ProbeResult.Logs`. Hỗ trợ multiline grouping và redaction dữ liệu nhạy cảm trước khi gửi. Track byte offset giữa các lần chạy, reset khi file bị truncate/rotate.

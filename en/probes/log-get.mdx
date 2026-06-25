@@ -3,6 +3,10 @@ title: 'Probe: log_get'
 description: 'Bounded log shipping with redaction'
 ---
 
+<Info>
+This probe is currently at the experimental stage.
+</Info>
+
 ## Description
 
 The `log_get` probe tails a log file and ships newly-appended lines to VMS ingress via `ProbeResult.Logs`. Supports multiline grouping and sensitive data redaction before export. Tracks the byte offset between runs and resets on truncation/rotation.

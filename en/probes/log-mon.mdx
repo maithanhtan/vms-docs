@@ -3,6 +3,10 @@ title: 'Probe: log_mon'
 description: 'Count log lines matching a pattern in a file'
 ---
 
+<Info>
+This probe is currently at the experimental stage.
+</Info>
+
 ## Description
 
 The `log_mon` probe tails a log file, counting newly-appended lines matching `includePattern` (and not matching `excludePattern`). It tracks a byte offset between runs — only counts new lines, resets on truncation/rotation.

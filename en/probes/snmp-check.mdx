@@ -3,6 +3,10 @@ title: 'Probe: snmp_check'
 description: 'Poll SNMP OIDs from network devices'
 ---
 
+<Warning>
+This probe is on the development roadmap.
+</Warning>
+
 ## Description
 
 The `snmp_check` probe polls OID values from SNMP-enabled devices. Supports SNMPv2c (community string) and SNMPv3 (username + auth/privacy). Credentials are resolved via secret references — never logged.
