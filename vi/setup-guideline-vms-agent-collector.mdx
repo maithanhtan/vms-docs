@@ -28,31 +28,6 @@ Dưới đây là luồng kết nối và báo cáo dữ liệu của Agent trê
 | OS | **Linux** hoặc **Windows** |
 | Kết nối | Không cần mở inbound. Outbound HTTPS tới `INGRESS_URL` để gửi metric/log và nhận config, và tới Dashboard để tải binary agent |
 | API Key | API key hợp lệ sinh từ VMS Master, nhúng sẵn trong script cài |
-| TLS Mode | Public CA, file CA nội bộ, hoặc bỏ qua xác thực cert (mặc định khi để trống `CA_URL`) |
-
----
-
-## Bước 0 — Chuẩn bị script và binary (trên Dashboard)
-
-Quy trình cài đặt dùng script `agent.sh` (Linux) hoặc `agent.ps1` (Windows). Mỗi script nhúng cấu hình trong khối `CONFIG` và tự tải binary agent về.
-
-<Steps>
-  <Step title="1. Lấy script và binary từ File Storage">
-    Trên VMS Dashboard, mở **File Storage**, upload (hoặc lấy sẵn) `agent.sh`/`agent.ps1` và archive binary agent. Dùng nút **Copy link** (alias) để lấy link luôn trỏ tới bản mới nhất.
-
-    ![Danh sách file agent trong File Storage](/images/agent-install/08-file-storage.png)
-  </Step>
-  <Step title="2. Sửa khối CONFIG trong script">
-    Mở script và điền các giá trị trong khối `CONFIG`:
-    ```bash
-    INGRESS_URL="https://ingest.CUSTOMER_DOMAIN"   # endpoint VMS Master
-    API_KEY="<API key từ VMS Master>"
-    BIN_URL="<alias link archive binary trên File Storage>"
-    CA_URL=""                                       # link CA nội bộ; để trống = bỏ qua xác thực TLS
-    ```
-    Lưu và upload lại script lên File Storage để tái sử dụng cho nhiều máy.
-  </Step>
-</Steps>
 
 ---
 

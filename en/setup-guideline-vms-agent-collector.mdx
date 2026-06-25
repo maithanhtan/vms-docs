@@ -28,33 +28,9 @@ Below is the connection and reporting structure of the VMS Agent deployed on bot
 | OS | **Linux** or **Windows** |
 | Connection | No inbound ports. Outbound HTTPS to `INGRESS_URL` to push metrics/logs and fetch config, and to the Dashboard to download the agent binary |
 | API Key | A valid API key generated from VMS Master, embedded in the install script |
-| TLS Mode | Public CA, internal CA file, or skip certificate verification (default when `CA_URL` is empty) |
 
 ---
 
-## Step 0 — Prepare the script and binary (on the Dashboard)
-
-Installation uses `agent.sh` (Linux) or `agent.ps1` (Windows). Each embeds its configuration in a `CONFIG` block and downloads the agent binary itself.
-
-<Steps>
-  <Step title="1. Get the script and binary from File Storage">
-    On the VMS Dashboard, open **File Storage**, upload (or fetch) `agent.sh`/`agent.ps1` and the agent binary archive. Use the **Copy link** (alias) button to get a link that always points to the latest upload.
-
-    ![Agent files listed in File Storage](/images/agent-install/08-file-storage.png)
-  </Step>
-  <Step title="2. Edit the CONFIG block">
-    Open the script and fill in the values in the `CONFIG` block:
-    ```bash
-    INGRESS_URL="https://ingest.CUSTOMER_DOMAIN"   # VMS Master endpoint
-    API_KEY="<API key from VMS Master>"
-    BIN_URL="<alias link of the binary archive on File Storage>"
-    CA_URL=""                                       # internal CA link; empty = skip TLS verification
-    ```
-    Save and re-upload the script to File Storage to reuse it across machines.
-  </Step>
-</Steps>
-
----
 
 ## Deployment Flow on Linux
 
