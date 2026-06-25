@@ -21,7 +21,6 @@ The VMS agent collector runs on the customer host to collect metrics, checks, an
 |---|---|
 | OS | **Linux** or **Windows** |
 | Connection | Outbound HTTPS to `INGRESS_URL` |
-| API Key | From VMS Master, embedded in the install script |
 
 ---
 
@@ -66,7 +65,7 @@ The VMS agent collector runs on the customer host to collect metrics, checks, an
   </Step>
 </Steps>
 
-Once installed, the agent appears in **Agent Config (FLEET)** on the Dashboard:
+Once installed, the agent appears in **Agent Config (FLEET)** on the Dashboard (`https://<VMS_MASTER_IP>/dashboards/agent-config`):
 
 ![Agent online in the FLEET panel on the Dashboard](/images/agent-install/09-agent-online.png)
 
@@ -95,12 +94,12 @@ Once installed, the agent appears in **Agent Config (FLEET)** on the Dashboard:
   </Step>
 
   <Step title="3. Check logs / version">
-    - **Step**: Print the version and confirm the agent is reporting to the Dashboard:
+    - **Step**: Print the version:
       ```powershell
       & "$env:LOCALAPPDATA\vms-monitor-agent\vms-monitor-agent.exe" version
       ```
-    - **Check**: Prints version, commit, and build date; the agent appears in the Dashboard list.
-    - **Result**: Correct installed version and the agent is online.
+    - **Check**: Prints version, commit, and build date.
+    - **Result**: Agent is online on the Dashboard.
   </Step>
 </Steps>
 
@@ -129,24 +128,24 @@ After install, open a **new terminal/PowerShell** and use the `vms-monitor-agent
 ![Agent stop and start lifecycle](/images/agent-install/05-lifecycle.png)
 
 <Info>
-**`stop` is permanent**: it both stops the process and disables auto-start, so the agent **does not come back after a reboot or re-login** (even if the process is killed). To run it again use `vms-monitor-agent start`; to remove it entirely use `vms-monitor-agent uninstall`.
+**`stop` is permanent**: it stops the process and disables auto-start. The agent **does not come back after a reboot**. Use `start` to resume or `uninstall` to remove.
 
-If the bare command prints `command not found` (e.g. `bash: vms-monitor-agent: command not found`; on PowerShell it's `The term 'vms-monitor-agent' is not recognized...`), open a new shell, or use the full path (`~/.local/bin/vms-monitor-agent` on Linux, `%LOCALAPPDATA%\vms-monitor-agent\vms-monitor-agent.exe` on Windows). If the agent prints `unknown command "status"`, the host is running an older agent that doesn't support the management verbs yet — update it first (re-run the install).
+If `command not found`, open a new shell or use the full path (`~/.local/bin/vms-monitor-agent` on Linux, `%LOCALAPPDATA%\vms-monitor-agent\vms-monitor-agent.exe` on Windows).
 </Info>
 
 ---
 
 ## Updating the agent
 
-To update the agent, re-run the installation command on your host:
+Re-run the install command:
 
 - **Linux**:
   ```bash
   curl -fsSL "<agent.sh link>" | sh
   ```
-  The script compares the installed version with the latest version and asks before replacing the binary (set `VMS_ASSUME_YES=1` for non-interactive updates).
+  The script compares versions and asks before replacing the binary.
   
-  If the host is already on the latest version, the script only health-checks it and reports `already current`:
+  If already up to date, the script reports `already current`:
 
   ![Re-running the install command when already on the latest version](/images/agent-install/07-update.png)
 
@@ -159,7 +158,7 @@ To update the agent, re-run the installation command on your host:
 
 ## Uninstalling the agent
 
-To uninstall the agent, run the uninstall command directly from the binary (recommended), or re-fetch the installation script with the uninstall parameter:
+Run `uninstall` from the binary, or re-fetch the script with `uninstall`:
 
 - **Linux**:
   ```bash
@@ -185,8 +184,5 @@ To uninstall the agent, run the uninstall command directly from the binary (reco
 
 | Symptoms | Likely Cause | Resolution |
 |---|---|---|
-| Agent fails to start immediately | Missing ingress URL or API key | Check and fix the CONFIG block in the script, then re-run |
+| Agent fails to start immediately | Missing ingress URL or API key | Check agent logs for the error detail |
 | `401` Authentication blocked | Invalid or rotated API key | Get a new key from VMS Master and re-run the script |
-| `x509 unknown authority` | Ingress uses a private CA | Set `CA_URL` to the internal CA (the script sets `VMS_TLS_CA_FILE`) |
-| Ping transitions to TCP fallback | Lack of raw ICMP privileges | Grant `CAP_NET_RAW` or accept TCP fallback |
-| Connection/Process missing process names | Lack of process attribution permission | Run with appropriate privileges or grant `CAP_SYS_PTRACE` per policy |

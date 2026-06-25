@@ -21,7 +21,6 @@ VMS agent collector chạy trên host khách hàng để thu thập metrics, che
 |---|---|
 | OS | **Linux** hoặc **Windows** |
 | Kết nối | Outbound HTTPS tới `INGRESS_URL` |
-| API Key | Từ VMS Master, nhúng sẵn trong script cài |
 
 ---
 
@@ -65,7 +64,7 @@ VMS agent collector chạy trên host khách hàng để thu thập metrics, che
   </Step>
 </Steps>
 
-Sau khi cài xong, agent hiện trong **Agent Config (FLEET)** trên Dashboard:
+Sau khi cài xong, agent hiện trong **Agent Config (FLEET)** trên Dashboard (`https://<VMS_MASTER_IP>/dashboards/agent-config`):
 
 ![Agent online trong FLEET trên Dashboard](/images/agent-install/09-agent-online.png)
 
@@ -94,12 +93,12 @@ Sau khi cài xong, agent hiện trong **Agent Config (FLEET)** trên Dashboard:
   </Step>
 
   <Step title="3. Kiểm tra logs / version">
-    - **Step**: In thông tin phiên bản và kiểm tra agent đã đẩy dữ liệu lên Dashboard:
+    - **Step**: In phiên bản:
       ```powershell
       & "$env:LOCALAPPDATA\vms-monitor-agent\vms-monitor-agent.exe" version
       ```
-    - **Check**: In ra version, commit và build date; agent xuất hiện trong danh sách trên Dashboard.
-    - **Result**: Đúng phiên bản vừa cài và agent đang online.
+    - **Check**: In ra version, commit và build date.
+    - **Result**: Agent đang online trên Dashboard.
   </Step>
 </Steps>
 
@@ -128,24 +127,24 @@ Minh hoạ `stop` (dừng hẳn) rồi `start` lại — chú ý `running` và `
 ![Vòng đời stop và start agent](/images/agent-install/05-lifecycle.png)
 
 <Info>
-**`stop` là dừng hẳn**: nó vừa dừng tiến trình vừa tắt auto-start, nên agent **không tự chạy lại sau reboot hay đăng nhập lại** (kể cả khi process bị kill). Muốn chạy lại dùng `vms-monitor-agent start`; muốn gỡ hẳn dùng `vms-monitor-agent uninstall`.
+**`stop` là dừng hẳn**: dừng tiến trình và tắt auto-start. Agent **không tự chạy lại sau reboot**. Dùng `start` để chạy lại hoặc `uninstall` để gỡ.
 
-Nếu gõ tên trần mà shell báo `command not found` (ví dụ `bash: vms-monitor-agent: command not found`; trên PowerShell là `The term 'vms-monitor-agent' is not recognized...`), hãy mở shell mới, hoặc dùng đường dẫn đầy đủ (`~/.local/bin/vms-monitor-agent` trên Linux, `%LOCALAPPDATA%\vms-monitor-agent\vms-monitor-agent.exe` trên Windows). Nếu agent in `unknown command "status"`, host đang chạy bản agent cũ chưa hỗ trợ lệnh quản lý — hãy cập nhật trước (chạy lại lệnh cài).
+Nếu gặp `command not found`, mở shell mới hoặc dùng đường dẫn đầy đủ (`~/.local/bin/vms-monitor-agent` trên Linux, `%LOCALAPPDATA%\vms-monitor-agent\vms-monitor-agent.exe` trên Windows).
 </Info>
 
 ---
 
 ## Cập nhật agent
 
-Để cập nhật agent, chạy lại lệnh cài đặt trên host:
+Chạy lại lệnh cài đặt:
 
 - **Linux**:
   ```bash
   curl -fsSL "<agent.sh link>" | sh
   ```
-  Script tự động so sánh phiên bản đã cài với phiên bản mới nhất và hỏi ý kiến trước khi thay thế binary (đặt `VMS_ASSUME_YES=1` để cập nhật không cần tương tác).
+  Script so sánh phiên bản và hỏi trước khi thay binary.
   
-  Khi host đã ở bản mới nhất, script chỉ kiểm tra sức khỏe rồi báo `already current`:
+  Nếu đã ở bản mới nhất, script báo `already current`:
 
   ![Chạy lại lệnh cài khi agent đã ở bản mới nhất](/images/agent-install/07-update.png)
 
@@ -158,7 +157,7 @@ Nếu gõ tên trần mà shell báo `command not found` (ví dụ `bash: vms-mo
 
 ## Gỡ cài đặt agent
 
-Để gỡ cài đặt agent, chạy lệnh gỡ cài đặt trực tiếp từ binary (khuyến nghị), hoặc tải lại script cài đặt kèm tham số uninstall:
+Chạy `uninstall` từ binary, hoặc tải lại script kèm `uninstall`:
 
 - **Linux**:
   ```bash
@@ -184,8 +183,5 @@ Nếu gõ tên trần mà shell báo `command not found` (ví dụ `bash: vms-mo
 
 | Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
 |---|---|---|
-| Agent start fail ngay | Thiếu ingress URL/API key | Kiểm tra và sửa khối CONFIG trong script rồi chạy lại |
+| Agent start fail ngay | Thiếu ingress URL/API key | Kiểm tra log agent để xem lỗi chi tiết |
 | `401`/auth blocked | API key sai hoặc bị rotate | Lấy key mới từ VMS Master và chạy lại script |
-| `x509 unknown authority` | Ingress dùng private CA | Khai báo `CA_URL` trỏ tới CA nội bộ (script set `VMS_TLS_CA_FILE`) |
-| Ping chuyển TCP fallback | Thiếu raw ICMP permission | Cấp `CAP_NET_RAW` hoặc chấp nhận TCP fallback |
-| Connection/process thiếu process name | Thiếu quyền đọc process attribution | Chạy với quyền phù hợp hoặc cấp `CAP_SYS_PTRACE` theo policy |
